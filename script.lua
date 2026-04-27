@@ -1,111 +1,84 @@
 --[[ 
-    XENON HUB v1.4.7 - RE-CODE EVERYTHING
-    Sửa lỗi: Nhấn nút không hoạt động & Đứng im
+    XENON HUB v2.0 - TWISTED (STORM CHASER)
+    Tính năng: Định vị lốc, Chạy nhanh, Auto Farm Thiết bị
 ]]
 
 local Player = game.Players.LocalPlayer
 local Core = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
-local _G = { FarmLevel = false, FlySpeed = 60 }
+local _G = { Speed = 100, AutoFarm = false, Esp = true }
 
--- Xóa UI cũ
-if Core:FindFirstChild("XenonV7") then Core.XenonV7:Destroy() end
+if Core:FindFirstChild("XenonTwisted") then Core.XenonTwisted:Destroy() end
+local SG = Instance.new("ScreenGui", Core); SG.Name = "XenonTwisted"
 
-local ScreenGui = Instance.new("ScreenGui", Core); ScreenGui.Name = "XenonV7"
+-- Nút mở Menu
+local T = Instance.new("TextButton", SG)
+T.Size, T.Position, T.Text = UDim2.new(0,80,0,35), UDim2.new(0,10,0,150), "XENON"
+T.BackgroundColor3, T.TextColor3 = Color3.fromRGB(200, 0, 0), Color3.new(1,1,1)
+Instance.new("UICorner", T)
 
--- NÚT MỞ MENU
-local OpenBtn = Instance.new("TextButton", ScreenGui)
-OpenBtn.Size = UDim2.new(0, 80, 0, 35)
-OpenBtn.Position = UDim2.new(0, 10, 0, 150)
-OpenBtn.Text = "XENON"
-OpenBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-OpenBtn.Draggable = true
-Instance.new("UICorner", OpenBtn)
+-- Menu Chính
+local M = Instance.new("Frame", SG)
+M.Size, M.Position, M.BackgroundColor3 = UDim2.new(0,250,0,300), UDim2.new(0.5,-125,0.5,-150), Color3.fromRGB(20,20,20)
+M.Visible = true; Instance.new("UICorner", M)
 
--- KHUNG MENU
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 300, 0, 350)
-MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-MainFrame.Visible = true
-Instance.new("UICorner", MainFrame)
+local List = Instance.new("ScrollingFrame", M)
+List.Size, List.Position, List.BackgroundTransparency = UDim2.new(1,-20,1,-20), UDim2.new(0,10,0,10), 1
+List.CanvasSize = UDim2.new(0,0,2,0)
+local Layout = Instance.new("UIListLayout", List); Layout.Padding = UDim.new(0,10)
 
-local List = Instance.new("ScrollingFrame", MainFrame)
-List.Size = UDim2.new(1, -20, 1, -20)
-List.Position = UDim2.new(0, 10, 0, 10)
-List.BackgroundTransparency = 1
-List.CanvasSize = UDim2.new(0, 0, 2, 0)
-local Layout = Instance.new("UIListLayout", List)
-Layout.Padding = UDim.new(0, 15)
-Layout.HorizontalAlignment = "Center"
-
--- HÀM TẠO NÚT CƠ BẢN (Không lỗi)
-local function MakeButton(txt, callback)
-    local btn = Instance.new("TextButton", List)
-    btn.Size = UDim2.new(0.9, 0, 0, 45)
-    btn.Text = txt
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = "GothamBold"
-    Instance.new("UICorner", btn)
-    
-    btn.MouseButton1Click:Connect(function()
-        pcall(callback, btn)
-    end)
+local function AddBtn(txt, callback)
+    local b = Instance.new("TextButton", List)
+    b.Size, b.Text = UDim2.new(1,0,0,40), txt
+    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(40,40,45), Color3.new(1,1,1)
+    Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(function() callback(b) end)
 end
 
--- 1. CHỈNH TỐC ĐỘ
-local SBox = Instance.new("TextBox", List)
-SBox.Size = UDim2.new(0.9, 0, 0, 40)
-SBox.Text = "60"
-SBox.PlaceholderText = "Nhập Speed..."
-SBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-SBox.TextColor3 = Color3.new(1,1,1)
-Instance.new("UICorner", SBox)
-SBox:GetPropertyChangedSignal("Text"):Connect(function()
-    _G.FlySpeed = tonumber(SBox.Text) or 60
-end)
-
--- 2. BAY (FLY)
-local flying = false
-MakeButton("FLY: OFF", function(self)
-    flying = not flying
-    self.Text = flying and "FLY: ON" or "FLY: OFF"
-    self.BackgroundColor3 = flying and Color3.fromRGB(0, 120, 255) or Color3.fromRGB(40, 40, 45)
-    
+-- 1. CHẠY NHANH (WalkSpeed)
+AddBtn("SIÊU TỐC ĐỘ: OFF", function(self)
+    _G.SpeedHack = not _G.SpeedHack
+    self.Text = _G.SpeedHack and "SIÊU TỐC: ON" or "SIÊU TỐC: OFF"
     task.spawn(function()
-        local hrp = Player.Character:WaitForChild("HumanoidRootPart")
-        local bv = Instance.new("BodyVelocity", hrp)
-        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-        while flying do
-            task.wait()
-            if Player.Character.Humanoid.MoveDirection.Magnitude > 0 then
-                bv.Velocity = workspace.CurrentCamera.CFrame.LookVector * _G.FlySpeed
-            else
-                bv.Velocity = Vector3.new(0, 0, 0)
+        while _G.SpeedHack do
+            if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+                Player.Character.Humanoid.WalkSpeed = _G.Speed
             end
+            task.wait()
         end
-        bv:Destroy()
+        Player.Character.Humanoid.WalkSpeed = 16
     end)
 end)
 
--- 3. AUTO FARM (SAILOR PIECE)
-MakeButton("AUTO FARM LEVEL", function(self)
-    _G.FarmLevel = not _G.FarmLevel
-    self.Text = _G.FarmLevel and "FARMING..." or "AUTO FARM LEVEL"
-    self.BackgroundColor3 = _G.FarmLevel and Color3.fromRGB(255, 100, 0) or Color3.fromRGB(40, 40, 45)
+-- 2. ĐỊNH VỊ LỐC XOÁY (ESP)
+AddBtn("ĐỊNH VỊ LỐC: ON", function(self)
+    _G.Esp = not _G.Esp
+    self.Text = _G.Esp and "ĐỊNH VỊ LỐC: ON" or "ĐỊNH VỊ LỐC: OFF"
+end)
+
+-- 3. AUTO FARM (ĐẶT & LẤY THIẾT BỊ)
+AddBtn("AUTO FARM SENSOR: OFF", function(self)
+    _G.AutoFarm = not _G.AutoFarm
+    self.Text = _G.AutoFarm and "AUTO FARM: ON" or "AUTO FARM: OFF"
     
     task.spawn(function()
-        while _G.FarmLevel do
-            task.wait()
+        while _G.AutoFarm do
+            task.wait(1)
             pcall(function()
-                -- Tìm quái
-                for _, mob in pairs(workspace.Enemies:GetChildren()) do
-                    if mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 then
-                        -- Bay thẳng lên đầu quái
-                        Player.Character.HumanoidRootPart.CFrame = mob.HumanoidRootPart.CFrame * CFrame.new(0, 7, 0)
-                        -- Vả
-                        game:GetService("ReplicatedStorage").Events.Combat:FireServer()
+                -- Tìm lốc xoáy (Storm)
+                local storm = workspace:FindFirstChild("Storms") and workspace.Storms:GetChildren()[1]
+                if storm then
+                    local dist = (Player.Character.HumanoidRootPart.Position - storm.Position).Magnitude
+                    
+                    -- Nếu lốc gần (đang đến), tự đặt thiết bị
+                    if dist < 500 and dist > 100 then
+                        -- Lệnh đặt thiết bị (Remote tùy thuộc vào game Twisted)
+                        game:GetService("ReplicatedStorage").Remotes.PlaceSensor:FireServer()
+                    end
+                    
+                    -- Nếu lốc đã đi xa, tự lấy lại thiết bị
+                    if dist > 600 then
+                        game:GetService("ReplicatedStorage").Remotes.PickupSensor:FireServer()
                     end
                 end
             end)
@@ -113,7 +86,21 @@ MakeButton("AUTO FARM LEVEL", function(self)
     end)
 end)
 
--- Đóng mở Menu
-OpenBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
+-- Vẽ ESP Lốc Xoáy
+RunService.RenderStepped:Connect(function()
+    if _G.Esp then
+        pcall(function()
+            for _, s in pairs(workspace.Storms:GetChildren()) do
+                if not s:FindFirstChild("XenonEsp") then
+                    local bill = Instance.new("BillboardGui", s); bill.Name = "XenonEsp"
+                    bill.AlwaysOnTop, bill.Size = true, UDim2.new(0,100,0,50)
+                    local txt = Instance.new("TextLabel", bill)
+                    txt.Size, txt.BackgroundTransparency, txt.TextColor3 = UDim2.new(1,0,1,0), 1, Color3.new(1,0,0)
+                    txt.Text = "⚠️ LỐC XOÁY ⚠️"
+                end
+            end
+        end)
+    end
 end)
+
+T.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
