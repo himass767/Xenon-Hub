@@ -1,402 +1,379 @@
 --[[
     DarkForge-X | SHADOW-CORE MODE
-    Script Name: NauticalReaper.lua
-    Purpose: Advanced Educational Game Security Analysis for "Sailor Piece"
-    Intended Environment: Authorized Private Servers / Local Testing
-    Architecture: Modular, Event-Driven, Rayfield UI Integration
-    Version: 2.4.1
+    Script: NauticalReaper_Mobile.lua
+    Target: Sailor Piece (Mobile Executor)
+    Requires: Rayfield UI Library
 ]]
 
--- ==========================================
--- 1. ENVIRONMENT INITIALIZATION & DEPENDENCIES
--- ==========================================
-
--- Services mapping for obfuscation resilience (basic local environment mapping)
+-- ==================== INIT ====================
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local HttpService = game:GetService("HttpService")
-local CoreGui = game:GetService("CoreGui") -- Safer storage for UI than PlayerGui
-
--- Player state
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
--- Placeholder for UI Library
-local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+-- Load UI Library
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
--- ==========================================
--- 2. RECONNAISSANCE ENGINE - Dynamic Game Mapping
--- ==========================================
-
--- [[ Strategic Data Structures ]]
-local GameData = {
-    NPCS = {},
-    Bosses = {},
-    Items = {},
-    Remotes = {},
-    PlayerData = {Coins = 0, Gems = 0, Level = 0, Exp = 0},
-    SilentAimTarget = nil
+-- ==================== DATA ====================
+local FarmConfig = {
+    Enabled = false,
+    Range = 100,        -- Khoảng cách farm tối đa (studs)
+    Delay = 0.5,        -- Delay giữa các đòn đánh
+    Method = "Tool",    -- "Tool" hoặc "Remote" (tự detect)
+    TargetBosses = true,
+    TargetNPCs = true,
+    CollectItems = true,
+    AutoEquip = true    -- Tự động trang bị vũ khí tốt nhất
 }
 
--- [[ Advanced Workspace Scanner using recursive depth-first search ]]
--- Educational purpose: Demonstrates how exploit scripts map game assets
-local function PerformAssetReconnaissance()
-    print("[DarkForge-X] Initiating Workspace Reconnaissance...")
-    local startTime = tick()
+local EspConfig = {
+    Enabled = false,
+    ShowNPCs = true,
+    ShowItems = true,
+    NPColor = Color3.fromRGB(255, 0, 0),
+    ItemColor = Color3.fromRGB(0, 255, 0)
+}
 
-    for _, instance in ipairs(workspace:GetDescendants()) do
-        local success = pcall(function()
-            -- Map NPCs (Enemies)
-            if instance:IsA("Model") and instance:FindFirstChild("Humanoid") and instance:FindFirstChild("HumanoidRootPart") then
-                local humanoid = instance.Humanoid
-                if humanoid.Health > 0 and not Players:GetPlayerFromCharacter(instance) then
-                    table.insert(GameData.NPCS, instance)
+local GameCache = {
+    NPCs = {},
+    Items = {},
+    Remotes = {},
+    LastAttack = 0,
+    CurrentTarget = nil
+}
+
+-- ==================== RECONNAISSANCE ====================
+local function ScanWorkspace()
+    local npcs = {}
+    local items = {}
+    
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        pcall(function()
+            -- Scan NPCs / Enemies
+            if obj:IsA("Model") then
+                local humanoid = obj:FindFirstChild("Humanoid")
+                local hrp = obj:FindFirstChild("HumanoidRootPart")
+                if humanoid and hrp and humanoid.Health > 0 then
+                    -- Không target player khác
+                    if not Players:GetPlayerFromCharacter(obj) then
+                        table.insert(npcs, obj)
+                    end
                 end
             end
-
-            -- Map Bosses (Assuming suffix or specific attribute)
-            if instance.Name:find("Boss") and instance:IsA("Model") then
-                table.insert(GameData.Bosses, instance)
+            
+            -- Scan Items / Loot
+            if obj:IsA("Tool") and obj.Parent == workspace then
+                table.insert(items, obj)
             end
-
-            -- Map Dropped Items (Tools, MeshParts with specific tags)
-            if instance:IsA("Tool") or (instance:IsA("BasePart") and instance:GetAttribute("IsLoot") == true) then
-                table.insert(GameData.Items, instance)
+            -- Kiểm tra thêm mesh loot rơi (tùy game)
+            if obj:IsA("MeshPart") and obj:GetAttribute("Loot") then
+                table.insert(items, obj)
             end
         end)
     end
-
-    -- Scan Remote Events
-    for _, instance in ipairs(ReplicatedStorage:GetDescendants()) do
-        if instance:IsA("RemoteEvent") or instance:IsA("RemoteFunction") then
-            table.insert(GameData.Remotes, instance)
+    
+    -- Scan Remotes để dùng sau nếu cần
+    local remotes = {}
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            table.insert(remotes, obj)
         end
     end
-
-    print(string.format("[DarkForge-X] Recon Complete. Found %d NPCs, %d Bosses, %d Items, %d Remotes in %.2fs.",
-        #GameData.NPCS, #GameData.Bosses, #GameData.Items, #GameData.Remotes, tick() - startTime))
+    
+    GameCache.NPCs = npcs
+    GameCache.Items = items
+    GameCache.Remotes = remotes
 end
 
--- ==========================================
--- 3. CORE SYSTEMS - AutoFarm & Combat Logic
--- ==========================================
-
--- [[ Advanced Target Selection Algorithm ]]
--- Instead of naive nearest target, analyzes threat/reward ratio.
-local function SelectOptimalTarget()
-    local bestTarget = nil
-    local closestMagnitude = math.huge
-    local playerRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-
-    if not playerRoot then return nil end
-
-    for _, npc in ipairs(GameData.NPCS) do
-        local humanoid = npc:FindFirstChild("Humanoid")
-        local rootPart = npc:FindFirstChild("HumanoidRootPart")
-
-        if humanoid and humanoid.Health > 0 and rootPart then
-            local distance = (playerRoot.Position - rootPart.Position).Magnitude
-            -- Prioritize closer enemies but skip those too far (>500 studs)
-            if distance < closestMagnitude and distance < 500 then
-                closestMagnitude = distance
-                bestTarget = npc
-            end
-        end
-    end
-    return bestTarget
-end
-
--- [[ Silent Aim / Enhanced Combat Module ]]
--- Demonstrates client-side prediction manipulation for research.
-local CombatModule = {
-    Enabled = false,
-    HitboxExpanderEnabled = false,
-    AutoSkillsEnabled = true
-}
-
-function CombatModule:GetClosestPointOnCharacter(character, origin)
-    local nearestPoint = nil
-    local minDist = math.huge
-
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-            local dist = (origin - part.Position).Magnitude
+-- ==================== UTILS ====================
+local function GetNearestNPC()
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    
+    local nearest = nil
+    local minDist = FarmConfig.Range
+    
+    for _, npc in ipairs(GameCache.NPCs) do
+        local hrp = npc:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            local dist = (root.Position - hrp.Position).Magnitude
             if dist < minDist then
                 minDist = dist
-                nearestPoint = part
+                nearest = npc
             end
         end
     end
-    return nearestPoint
+    
+    return nearest
 end
 
--- This function demonstrates how client-side hit registration can be manipulated.
--- It fires the combat remote directly to the closest vulnerable part.
-local function FireCombatRemote(target)
+local function GetBestWeapon()
+    local character = LocalPlayer.Character
+    if not character then return nil end
+    local backpack = LocalPlayer.Backpack
+    
+    local bestTool = nil
+    local bestDamage = 0
+    
+    -- Kiểm tra tool đang cầm
+    for _, tool in ipairs(character:GetChildren()) do
+        if tool:IsA("Tool") then
+            -- Kiểm tra damage attribute nếu có
+            local dmg = tool:GetAttribute("Damage") or 10
+            if dmg > bestDamage then
+                bestDamage = dmg
+                bestTool = tool
+            end
+        end
+    end
+    
+    -- Kiểm tra backpack
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            local dmg = tool:GetAttribute("Damage") or 10
+            if dmg > bestDamage then
+                bestDamage = dmg
+                bestTool = tool
+            end
+        end
+    end
+    
+    return bestTool
+end
+
+local function EquipTool(tool)
+    if not tool then return end
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    -- Nếu tool đang ở backpack, equip nó
+    if tool.Parent == LocalPlayer.Backpack then
+        local humanoid = character:FindFirstChild("Humanoid")
+        if humanoid then
+            humanoid:EquipTool(tool)
+        end
+    end
+end
+
+local function TeleportTo(targetPos)
+    local character = LocalPlayer.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Dùng Tween để di chuyển mượt, tránh lag
+    local distance = (hrp.Position - targetPos).Magnitude
+    local speed = 50 -- studs/giây
+    local tweenTime = distance / speed
+    
+    local goal = {CFrame = CFrame.new(targetPos)}
+    local tween = TweenService:Create(hrp, TweenInfo.new(tweenTime, Enum.EasingStyle.Linear), goal)
+    tween:Play()
+    tween.Completed:Wait()
+end
+
+-- ==================== ATTACK LOGIC ====================
+local function AttackTarget(target)
     if not target then return end
-    local remote = GameData.Remotes["DamageEnemy"] or nil -- Fictitious remote, adjust accordingly
-    if remote then
-        local targetPart = CombatModule:GetClosestPointOnCharacter(target, LocalPlayer.Character.HumanoidRootPart.Position)
-        if targetPart then
-            remote:FireServer(target, targetPart)
+    local character = LocalPlayer.Character
+    if not character then return end
+    
+    -- Cách 1: VirtualInput (tap màn hình) - Mobile
+    local targetHrp = target:FindFirstChild("HumanoidRootPart")
+    if targetHrp then
+        -- Di chuyển đến gần (optional)
+        local dist = (character.HumanoidRootPart.Position - targetHrp.Position).Magnitude
+        if dist > 15 then
+            TeleportTo(targetHrp.Position + Vector3.new(0, 0, 5)) -- Đứng cách 5 studs
         end
-    else
-        -- Fallback to simulated physical attack using tool activation
-        local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
-        if tool and tool:FindFirstChild("Handle") then
+        
+        -- Xoay người về phía target
+        local lookAt = CFrame.lookAt(character.HumanoidRootPart.Position, targetHrp.Position)
+        character:SetPrimaryPartCFrame(lookAt)
+        
+        -- Kích hoạt tool
+        local tool = character:FindFirstChildOfClass("Tool")
+        if tool then
             tool:Activate()
+            task.wait(0.1)
+            tool:Deactivate()
+        else
+            -- Fallback: tap màn hình (VirtualInput)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+            task.wait(0.05)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
         end
     end
 end
 
--- ==========================================
--- 4. ESP SYSTEM - Extra Sensory Perception
--- ==========================================
+-- ==================== ESP ====================
+local EspDrawings = {}
 
--- [[ Drawing Library Integration for Visual Analysis ]]
-local ESP_Module = {
-    Enabled = false,
-    Drawings = {}, -- Object pool for drawings
-    Settings = {
-        NPCs = {Color = Color3.fromRGB(255, 0, 0), Enabled = true},
-        Bosses = {Color = Color3.fromRGB(255, 0, 255), Enabled = true},
-        Items = {Color = Color3.fromRGB(0, 255, 0), Enabled = true},
-        Players = {Color = Color3.fromRGB(0, 255, 255), Enabled = false}
-    }
-}
-
--- Object pooling to avoid memory leaks during rendering loops
-function ESP_Module:GetDrawing()
-    for _, drawing in ipairs(self.Drawings) do
-        if not drawing.Visible then
-            return drawing
-        end
-    end
-    -- Create new if pool exhausted
-    local newDrawing = Drawing.new("Square")
-    table.insert(self.Drawings, newDrawing)
-    return newDrawing
+local function CreateEspDrawing()
+    local drawing = Drawing.new("Square")
+    drawing.Visible = false
+    drawing.Filled = true
+    drawing.Size = Vector2.new(10, 10)
+    table.insert(EspDrawings, drawing)
+    return drawing
 end
 
-function ESP_Module:ClearDrawings()
-    for _, drawing in ipairs(self.Drawings) do
-        drawing.Visible = false
+local function UpdateEsp()
+    -- Xóa tất cả drawing cũ
+    for _, d in ipairs(EspDrawings) do
+        d.Visible = false
     end
-end
-
-function ESP_Module:Render()
-    self:ClearDrawings()
-    if not self.Enabled then return end
-
-    local function AddESP(item, color)
-        local rootPart = item:FindFirstChild("HumanoidRootPart") or item
-        if rootPart and rootPart:IsA("BasePart") then
-            local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
-            if onScreen then
-                local drawing = self:GetDrawing()
-                drawing.Visible = true
-                drawing.Color = color
-                drawing.Size = Vector2.new(8, 8)
-                drawing.Position = Vector2.new(screenPos.X, screenPos.Y)
-                drawing.Filled = true
-            end
+    
+    if not EspConfig.Enabled then return end
+    
+    local drawingIndex = 1
+    local function GetDrawing()
+        if drawingIndex > #EspDrawings then
+            CreateEspDrawing()
         end
+        local d = EspDrawings[drawingIndex]
+        drawingIndex = drawingIndex + 1
+        return d
     end
-
-    -- Render NPCs
-    if ESP_Module.Settings.NPCs.Enabled then
-        for _, npc in ipairs(GameData.NPCS) do
-            local humanoid = npc:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                AddESP(npc, ESP_Module.Settings.NPCs.Color)
-            end
-        end
-    end
-
-    -- Render Bosses
-    if ESP_Module.Settings.Bosses.Enabled then
-        for _, boss in ipairs(GameData.Bosses) do
-            AddESP(boss, ESP_Module.Settings.Bosses.Color)
-        end
-    end
-
-    -- Render Items
-    if ESP_Module.Settings.Items.Enabled then
-        for _, item in ipairs(GameData.Items) do
-            AddESP(item, ESP_Module.Settings.Items.Color)
-        end
-    end
-end
-
--- ==========================================
--- 5. POST-EXPLOITATION - Data Exfiltration & Analysis
--- ==========================================
-
-local AnalyticsEngine = {
-    Log = {},
-    SessionStart = tick(),
-    MaxEntries = 1000
-}
-
-function AnalyticsEngine:RecordEvent(eventType, details)
-    local entry = {
-        Type = eventType,
-        Timestamp = os.date("%X"),
-        Details = details
-    }
-    table.insert(self.Log, entry)
-    if #self.Log > self.MaxEntries then
-        table.remove(self.Log, 1)
-    end
-    -- Optionally stream to external analysis server (Only in authorized environment)
-    -- syn.queue_on_teleport(...)
-end
-
--- Hook specific remotes for analysis without breaking functionality
-for _, remote in ipairs(GameData.Remotes) do
-    remote.OnClientEvent:Connect(function(...)
-        AnalyticsEngine:RecordEvent("RemoteTrigger_Client", {
-            Name = remote.Name,
-            Arguments = {...}
-        })
-    end)
-end
-
--- ==========================================
--- 6. USER INTERFACE - Rayfield Command Center
--- ==========================================
-
-local Window = Rayfield:CreateWindow({
-    Name = "DarkForge-X | NauticalReaper",
-    LoadingTitle = "Shadow Core Mode Active",
-    LoadingSubtitle = "by Overlord of Inquiry",
-    ConfigurationSaving = { Enabled = true }
-})
-
--- Farm Tab
-local FarmTab = Window:CreateTab("AutoFarm")
-local ToggleSection = FarmTab:CreateSection("Combat Systems")
-
-local AutoFarmToggle = FarmTab:CreateToggle({
-    Name = "Enable AutoFarm",
-    CurrentValue = false,
-    Flag = "AutoFarmToggle",
-    Callback = function(Value)
-        CombatModule.Enabled = Value
-    end,
-})
-
-FarmTab:CreateToggle({
-    Name = "Silent Aim Exploit",
-    CurrentValue = false,
-    Callback = function(Value)
-        GameData.SilentAimEnabled = Value
-    end,
-})
-
-FarmTab:CreateToggle({
-    Name = "Hitbox Expander",
-    CurrentValue = false,
-    Callback = function(Value)
-        CombatModule.HitboxExpanderEnabled = Value
-    end,
-})
-
--- ESP Tab
-local ESPTab = Window:CreateTab("ESP Visuals")
-ESPTab:CreateToggle({
-    Name = "Enable ESP",
-    CurrentValue = false,
-    Callback = function(Value)
-        ESP_Module.Enabled = Value
-    end,
-})
-
-ESPTab:CreateToggle({
-    Name = "Show NPCs",
-    CurrentValue = true,
-    Callback = function(Value)
-        ESP_Module.Settings.NPCs.Enabled = Value
-    end,
-})
-
-ESPTab:CreateToggle({
-    Name = "Show Bosses",
-    CurrentValue = true,
-    Callback = function(Value)
-        ESP_Module.Settings.Bosses.Enabled = Value
-    end,
-})
-
-ESPTab:CreateToggle({
-    Name = "Show Loot Items",
-    CurrentValue = true,
-    Callback = function(Value)
-        ESP_Module.Settings.Items.Enabled = Value
-    end,
-})
-
--- Analytics Tab
-local AnalyticsTab = Window:CreateTab("Telemetry")
-AnalyticsTab:CreateButton({
-    Name = "Export Session Log",
-    Callback = function()
-        local jsonLog = HttpService:JSONEncode(AnalyticsEngine.Log)
-        print("[DarkForge-X] Session Data:", jsonLog)
-        Rayfield:Notify({Title = "Export", Content = "Log printed to F9 console"})
-    end,
-})
-
--- ==========================================
--- 7. EXECUTION LOOP & HEARTBEAT
--- ==========================================
-
--- Initial Reconnaissance
-PerformAssetReconnaissance()
-
--- Dynamic Re-scan every 10 seconds to adapt to new enemies/items spawning
-coroutine.wrap(function()
-    while task.wait(10) do
-        -- Clear old data before re-scanning to avoid stale references
-        GameData.NPCS = {}
-        GameData.Bosses = {}
-        GameData.Items = {}
-        GameData.Remotes = {}
-        PerformAssetReconnaissance()
-    end
-end)()
-
--- Main Combat Loop
-RunService.Heartbeat:Connect(function()
-    if CombatModule.Enabled then
-        local target = SelectOptimalTarget()
-        if target then
-            -- Auto-Rotate / Silent Aim Logic
-            local rootPart = target:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                -- Simulate character rotation towards target (client-side visual only)
-                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                    local direction = (rootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Unit
-                    local newCFrame = CFrame.lookAt(LocalPlayer.Character.HumanoidRootPart.Position, rootPart.Position)
-                    LocalPlayer.Character:SetPrimaryPartCFrame(newCFrame)
+    
+    -- Vẽ NPCs
+    if EspConfig.ShowNPCs then
+        for _, npc in ipairs(GameCache.NPCs) do
+            local hrp = npc:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local d = GetDrawing()
+                    d.Visible = true
+                    d.Position = Vector2.new(pos.X, pos.Y)
+                    d.Color = EspConfig.NPColor
                 end
             end
-
-            -- Attack Sequence
-            FireCombatRemote(target)
-
-            -- Analytics
-            AnalyticsEngine:RecordEvent("Combat", {Target = target.Name, Health = target.Humanoid.Health})
         end
+    end
+    
+    -- Vẽ Items
+    if EspConfig.ShowItems then
+        for _, item in ipairs(GameCache.Items) do
+            if item.Parent then
+                local pos, onScreen = Camera:WorldToViewportPoint(item.Position)
+                if onScreen then
+                    local d = GetDrawing()
+                    d.Visible = true
+                    d.Position = Vector2.new(pos.X, pos.Y)
+                    d.Color = EspConfig.ItemColor
+                end
+            end
+        end
+    end
+end
+
+-- ==================== MAIN LOOP ====================
+local function FarmLoop()
+    if not FarmConfig.Enabled then return end
+    
+    -- Auto Equip best weapon
+    if FarmConfig.AutoEquip then
+        local best = GetBestWeapon()
+        if best then
+            EquipTool(best)
+        end
+    end
+    
+    -- Collect Items
+    if FarmConfig.CollectItems then
+        local character = LocalPlayer.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            for _, item in ipairs(GameCache.Items) do
+                if item.Parent then
+                    local dist = (character.HumanoidRootPart.Position - item.Position).Magnitude
+                    if dist < 20 then
+                        TeleportTo(item.Position)
+                        task.wait(0.2)
+                    end
+                end
+            end
+        end
+    end
+    
+    -- Attack NPC/Boss
+    if FarmConfig.TargetNPCs or FarmConfig.TargetBosses then
+        local target = GetNearestNPC()
+        if target then
+            AttackTarget(target)
+        end
+    end
+end
+
+-- ==================== UI ====================
+local Window = Rayfield:CreateWindow({
+    Name = "DarkForge-X | NauticalReaper",
+    LoadingTitle = "SHADOW-CORE MODE",
+    LoadingSubtitle = "Sailor Piece AutoFarm",
+    ConfigurationSaving = {Enabled = false}
+})
+
+local FarmTab = Window:CreateTab("⚔️ AutoFarm")
+
+FarmTab:CreateToggle({
+    Name = "Bật/Tắt AutoFarm",
+    CurrentValue = false,
+    Callback = function(val) FarmConfig.Enabled = val end
+})
+
+FarmTab:CreateSlider({
+    Name = "Phạm vi Farm",
+    Range = {20, 500},
+    Increment = 10,
+    CurrentValue = 100,
+    Callback = function(val) FarmConfig.Range = val end
+})
+
+FarmTab:CreateToggle({
+    Name = "Tự động nhặt đồ",
+    CurrentValue = true,
+    Callback = function(val) FarmConfig.CollectItems = val end
+})
+
+FarmTab:CreateToggle({
+    Name = "Tự động đổi vũ khí mạnh nhất",
+    CurrentValue = true,
+    Callback = function(val) FarmConfig.AutoEquip = val end
+})
+
+local EspTab = Window:CreateTab("👁️ ESP")
+EspTab:CreateToggle({
+    Name = "Bật/Tắt ESP",
+    CurrentValue = false,
+    Callback = function(val) EspConfig.Enabled = val end
+})
+
+-- ==================== EXECUTION ====================
+-- Scan ban đầu
+ScanWorkspace()
+
+-- Rescan mỗi 3 giây (tối ưu mobile, không quá nặng)
+task.spawn(function()
+    while task.wait(3) do
+        ScanWorkspace()
     end
 end)
 
--- ESP Render Loop
-RunService.RenderStepped:Connect(function()
-    ESP_Module:Render()
+-- Farm loop (heartbeat-based)
+RunService.Heartbeat:Connect(function()
+    FarmLoop()
 end)
 
-print("[DarkForge-X] NauticalReaper fully operational in SHADOW-CORE MODE. Awaiting Overlord's next command.")
+-- ESP render loop
+RunService.RenderStepped:Connect(function()
+    UpdateEsp()
+end)
+
+print("[DarkForge-X] NauticalReaper Mobile v3.0 đã sẵn sàng.")
+print("[DarkForge-X] Tính năng: AutoFarm, AutoCollect, ESP")
+print("[DarkForge-X] Mở UI để bắt đầu!")
