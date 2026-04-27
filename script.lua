@@ -1,5 +1,5 @@
 --[[ 
-    XENON HUB v1.4.2 - THE FINAL FIX
+    XENON HUB v1.4.4 - SAILOR BEAST UPDATE
     Owners: Himass & Z-Ω
 ]]
 
@@ -7,27 +7,38 @@ local P = game.Players.LocalPlayer
 local S = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
-local F, N, AL, SailorActivated = false, false, true, false
-local _G = _G or {}
+local F, N, AL = false, false, true
+local _G = { Farm = false, Aura = false, Stats = false, Geppo = true }
 
--- Giao diện chính
+-- Xóa UI cũ để tránh chồng chéo
+if S:FindFirstChild("XenonFinal") then S.XenonFinal:Destroy() end
+
 local SG = Instance.new("ScreenGui", S)
+SG.Name = "XenonFinal"
+
+-- Nút mở Menu
 local T = Instance.new("TextButton", SG)
 T.Size, T.Position, T.Text = UDim2.new(0,80,0,35), UDim2.new(0,10,0,150), "XENON"
 T.BackgroundColor3, T.TextColor3 = Color3.fromRGB(20,20,25), Color3.fromRGB(0,200,255)
 T.Font, T.Draggable, T.Active = Enum.Font.GothamBold, true, true
 Instance.new("UICorner", T)
 
+-- Khung chính
 local M = Instance.new("Frame", SG)
-M.Size, M.Position, M.BackgroundColor3 = UDim2.new(0,380,0,300), UDim2.new(0.5,-190,0.5,-150), Color3.fromRGB(12,12,17)
-M.Visible, M.Draggable, M.Active = true, true, true
+M.Size, M.Position, M.BackgroundColor3 = UDim2.new(0,380,0,320), UDim2.new(0.5,-190,0.5,-160), Color3.fromRGB(10,10,15)
+M.Visible = true
 Instance.new("UICorner", M)
 
 -- Sidebar
 local Side = Instance.new("Frame", M)
-Side.Size, Side.BackgroundColor3 = UDim2.new(0,100,1,0), Color3.fromRGB(18,18,24)
+Side.Size, Side.BackgroundColor3 = UDim2.new(0,100,1,0), Color3.fromRGB(15,15,22)
 Instance.new("UICorner", Side)
 
+local SideLayout = Instance.new("UIListLayout", Side)
+SideLayout.Padding, SideLayout.HorizontalAlignment = UDim.new(0, 10), "Center"
+Instance.new("UIPadding", Side).PaddingTop = UDim.new(0, 20)
+
+-- Trang nội dung
 local Pages = Instance.new("Frame", M)
 Pages.Size, Pages.Position = UDim2.new(0,260,1,0), UDim2.new(0,110,0,0)
 Pages.BackgroundTransparency = 1
@@ -35,140 +46,97 @@ Pages.BackgroundTransparency = 1
 local function CreatePage(visible)
     local p = Instance.new("ScrollingFrame", Pages)
     p.Size, p.BackgroundTransparency, p.Visible = UDim2.new(1,0,1,0), 1, visible
-    p.ScrollBarThickness = 3
-    p.ScrollBarImageColor3 = Color3.fromRGB(0,200,255)
-    
+    p.ScrollBarThickness, p.AutomaticCanvasSize = 2, "Y"
     local layout = Instance.new("UIListLayout", p)
-    layout.Padding = UDim.new(0, 15) -- KHOẢNG CÁCH NÚT RỘNG NHƯ BUFFALO HUB
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    Instance.new("UIPadding", p).PaddingTop = UDim.new(0, 20)
-    
+    layout.Padding, layout.HorizontalAlignment = UDim.new(0, 15), "Center"
+    Instance.new("UIPadding", p).PaddingTop = UDim.new(0, 15)
     return p
 end
 
-local MainPg, GamePg, InfoPg = CreatePage(true), CreatePage(false), CreatePage(false)
+local MainPg = CreatePage(true)
+local GamePg = CreatePage(false)
+local InfoPg = CreatePage(false)
 
-local function TabBtn(name, page)
-    local b = Instance.new("TextButton", Side)
-    b.Size, b.Text = UDim2.new(0.9,0,0,40), name
+-- Hàm tạo nút tính năng (Kiểu Buffalo Hub - Cách nhau rộng)
+local function AddButton(txt, parent, callback)
+    local b = Instance.new("TextButton", parent)
+    b.Size, b.Text = UDim2.new(0.95,0,0,45), txt
     b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(30,30,40), Color3.new(1,1,1)
     b.Font, b.TextSize = Enum.Font.GothamBold, 12
     Instance.new("UICorner", b)
-    b.MouseButton1Click:Connect(function()
-        MainPg.Visible, GamePg.Visible, InfoPg.Visible = (page == MainPg), (page == GamePg), (page == InfoPg)
-    end)
+    b.MouseButton1Click:Connect(function() callback(b) end)
     return b
 end
 
-local MainTab = TabBtn("MAIN", MainPg)
-TabBtn("GAMES", GamePg)
-TabBtn("INFO", InfoPg)
-
-local function FeatureBtn(name, parent)
-    local b = Instance.new("TextButton", parent)
-    b.Size, b.Text = UDim2.new(0.95,0,0,45), name
-    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(35,35,48), Color3.new(1,1,1)
-    b.Font, b.TextSize = Enum.Font.GothamBold, 13
-    Instance.new("UICorner", b)
-    return b
+-- --- TAB INFO (Đã thêm nội dung) ---
+local function AddInfo(txt)
+    local l = Instance.new("TextLabel", InfoPg)
+    l.Size, l.Text = UDim2.new(1,0,0,30), txt
+    l.TextColor3, l.BackgroundTransparency, l.Font = Color3.new(0.7,0.7,0.7), 1, "Gotham"
 end
+AddInfo("XENON HUB v1.4.4")
+AddInfo("Owner: Himass & Z-Ω")
+AddInfo("Special: Sailor Piece Script")
 
--- --- TAB MAIN CONTENT ---
-local SpeedInput = Instance.new("TextBox", MainPg)
-SpeedInput.Size, SpeedInput.Text = UDim2.new(0.95,0,0,40), "50"
-SpeedInput.PlaceholderText = "Fly Speed"
-SpeedInput.BackgroundColor3, SpeedInput.TextColor3 = Color3.fromRGB(25,25,35), Color3.new(1,1,1)
-Instance.new("UICorner", SpeedInput)
-
-local FlyBtn = FeatureBtn("FLY: OFF", MainPg)
-local NocBtn = FeatureBtn("NOCLIP: OFF", MainPg)
-local LeaveBtn = FeatureBtn("AUTO-LEAVE: ON", MainPg)
-
--- --- TAB GAMES CONTENT ---
-local SailorActBtn = FeatureBtn("ACTIVATE SAILOR PIECE", GamePg)
-SailorActBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
-
--- --- LOGIC HỆ THỐNG ---
-
--- 1. Fly Fix (Không tự bay lên, điều khiển chuẩn)
-FlyBtn.MouseButton1Click:Connect(function()
-    F = not F
-    FlyBtn.Text = F and "FLY: ON" or "FLY: OFF"
-    FlyBtn.BackgroundColor3 = F and Color3.fromRGB(0,150,255) or Color3.fromRGB(35,35,48)
+-- --- TAB MAIN (Mặc định) ---
+local function LoadMainDefault()
+    MainPg:ClearAllChildren()
+    Instance.new("UIListLayout", MainPg).Padding = UDim.new(0,15)
     
-    local hrp = P.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp or not F then return end
-    
-    local bv = Instance.new("BodyVelocity", hrp)
-    local bg = Instance.new("BodyGyro", hrp)
-    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    bg.P = 15000
-    
-    task.spawn(function()
-        while F and task.wait() do
-            local cam = workspace.CurrentCamera
-            bg.CFrame = cam.CFrame
-            if P.Character.Humanoid.MoveDirection.Magnitude > 0 then
-                -- Bay theo đúng hướng camera (kể cả lên xuống)
-                bv.Velocity = cam.CFrame.LookVector * (tonumber(SpeedInput.Text) or 50)
-            else
-                -- Đứng im khi không bấm phím (Fix lỗi tự bay lên)
-                bv.Velocity = Vector3.new(0, 0, 0)
-            end
-        end
-        bv:Destroy()
-        bg:Destroy()
-    end)
-end)
-
--- 2. Auto Leave Admin (Luôn chạy ngầm)
-task.spawn(function()
-    while task.wait(2) do
-        if AL then
-            for _, v in pairs(game.Players:GetPlayers()) do
-                if v:GetRankInGroup(game.CreatorId) >= 200 then
-                    P:Kick("\n[XENON v1.4.2]\nADMIN DETECTED: " .. v.Name)
+    AddButton("FLY: OFF", MainPg, function(b)
+        F = not F
+        b.Text = F and "FLY: ON" or "FLY: OFF"
+        b.BackgroundColor3 = F and Color3.fromRGB(0,150,255) or Color3.fromRGB(30,30,40)
+        
+        local hrp = P.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp or not F then return end
+        local bv = Instance.new("BodyVelocity", hrp)
+        bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        task.spawn(function()
+            while F and task.wait() do
+                if P.Character.Humanoid.MoveDirection.Magnitude > 0 then
+                    bv.Velocity = workspace.CurrentCamera.CFrame.LookVector * 60
+                else
+                    bv.Velocity = Vector3.new(0,0,0)
                 end
             end
-        end
-    end
-end)
+            bv:Destroy()
+        end)
+    end)
+    
+    AddButton("NOCLIP: OFF", MainPg, function(b)
+        N = not N
+        b.Text = N and "NOCLIP: ON" or "NOCLIP: OFF"
+    end)
+end
+LoadMainDefault()
 
--- 3. Sailor Piece Transformation (Real Features)
-SailorActBtn.MouseButton1Click:Connect(function()
-    if SailorActivated then return end
-    SailorActivated = true
-    SailorActBtn.Text = "SAILOR MODE ACTIVE!"
-    SailorActBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+-- --- TAB GAMES (Kích hoạt Sailor) ---
+AddButton("ACTIVATE SAILOR PIECE", GamePg, function(btn)
+    btn.Text = "SAILOR ACTIVE!"
+    btn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
     
-    -- Xóa nút cũ ở Main
-    FlyBtn:Destroy()
-    NocBtn:Destroy()
-    SpeedInput:Destroy()
+    -- LÀM MỚI TAB MAIN VỚI TÍNH NĂNG FARM
+    MainPg:ClearAllChildren()
+    local l = Instance.new("UIListLayout", MainPg)
+    l.Padding, l.HorizontalAlignment = UDim.new(0,15), "Center"
     
-    -- Thêm tính năng farm Sailor Piece
-    local FarmBtn = FeatureBtn("AUTO FARM LEVEL: OFF", MainPg)
-    local AuraBtn = FeatureBtn("KILL AURA: OFF", MainPg)
-    local GeppoBtn = FeatureBtn("INFINITE GEPPO: ON", MainPg)
+    AddButton("AUTO FARM LEVEL: OFF", MainPg, function(b)
+        _G.Farm = not _G.Farm
+        b.Text = _G.Farm and "AUTO FARM: ON" or "AUTO FARM: OFF"
+        -- Logic: Teleport to Quest NPC & Mobs (Phải có tên NPC cụ thể)
+    end)
     
-    MainTab.Text = "SAILOR"
-    
-    -- Kill Aura Logic (Tự đánh quái)
-    AuraBtn.MouseButton1Click:Connect(function()
-        _G.KillAura = not _G.KillAura
-        AuraBtn.Text = _G.KillAura and "KILL AURA: ON" or "KILL AURA: OFF"
-        AuraBtn.BackgroundColor3 = _G.KillAura and Color3.fromRGB(255, 80, 0) or Color3.fromRGB(35,35,48)
-        
+    AddButton("KILL AURA: OFF", MainPg, function(b)
+        _G.Aura = not _G.Aura
+        b.Text = _G.Aura and "KILL AURA: ON" or "KILL AURA: OFF"
         task.spawn(function()
-            while _G.KillAura do
+            while _G.Aura do
                 pcall(function()
-                    for _, enemy in pairs(workspace.Enemies:GetChildren()) do
-                        if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
-                            local dist = (P.Character.HumanoidRootPart.Position - enemy.HumanoidRootPart.Position).Magnitude
-                            if dist < 30 then
-                                -- Giả lập đánh quái
-                                enemy.Humanoid:TakeDamage(50)
+                    for _, v in pairs(workspace.Enemies:GetChildren()) do
+                        if v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                            if (P.Character.HumanoidRootPart.Position - v.HumanoidRootPart.Position).Magnitude < 30 then
+                                v.Humanoid.Health = 0 -- Ví dụ vả quái
                             end
                         end
                     end
@@ -177,18 +145,35 @@ SailorActBtn.MouseButton1Click:Connect(function()
             end
         end)
     end)
-
-    -- Infinite Jump
+    
+    AddButton("INFINITE GEPPO: ON", MainPg, function() end)
+    
+    -- Jump Logic cho Sailor
     UIS.JumpRequest:Connect(function()
-        if SailorActivated then P.Character.Humanoid:ChangeState("Jumping") end
+        if _G.Geppo then P.Character.Humanoid:ChangeState("Jumping") end
     end)
 end)
 
--- Noclip & UI Toggle
-NocBtn.MouseButton1Click:Connect(function() N = not N; NocBtn.Text = N and "NOCLIP: ON" or "NOCLIP: OFF" end)
+-- Chuyển Tab
+local function TabSwitch(name, pg)
+    local b = Instance.new("TextButton", Side)
+    b.Size, b.Text = UDim2.new(0.9,0,0,40), name
+    b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(25,25,35), Color3.new(1,1,1)
+    b.Font = "GothamBold"
+    Instance.new("UICorner", b)
+    b.MouseButton1Click:Connect(function()
+        MainPg.Visible, GamePg.Visible, InfoPg.Visible = (pg == MainPg), (pg == GamePg), (pg == InfoPg)
+    end)
+end
+TabSwitch("MAIN", MainPg)
+TabSwitch("GAMES", GamePg)
+TabSwitch("INFO", InfoPg)
+
+-- Noclip RunService
 RunService.Stepped:Connect(function()
     if N and P.Character then
         for _, v in pairs(P.Character:GetDescendants()) do if v:IsA("BasePart") then v.CanCollide = false end end
     end
 end)
+
 T.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
