@@ -177,3 +177,75 @@ RunService.Stepped:Connect(function()
 end)
 
 T.MouseButton1Click:Connect(function() M.Visible = not M.Visible end)
+-- ==========================================
+-- XENON HUB v1.4.7 - SAILOR ADD-ON
+-- (Dán đoạn này vào dưới cùng code cũ)
+-- ==========================================
+
+-- Đảm bảo không ghi đè lên các biến cũ của mày
+local SailorPiece_Module = {}
+
+function SailorPiece_Module:Init()
+    -- Kiểm tra nếu Tab Games đã tồn tại từ code cũ của mày
+    -- Nếu chưa có GamePg thì nó sẽ tạo mới, có rồi thì nó dùng tiếp
+    if not GamePg then return end 
+
+    local SailorBtn = Instance.new("TextButton", GamePg)
+    SailorBtn.Size = UDim2.new(0.95, 0, 0, 45)
+    SailorBtn.Text = "ACTIVATE SAILOR FARM"
+    SailorBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+    SailorBtn.TextColor3 = Color3.new(1,1,1)
+    SailorBtn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", SailorBtn)
+
+    SailorBtn.MouseButton1Click:Connect(function()
+        SailorBtn.Text = "SAILOR ACTIVE!"
+        SailorBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+        
+        -- THÊM TÍNH NĂNG VÀO TAB MAIN MÀ KHÔNG XÓA CŨ
+        if MainPg then
+            -- Tạo một đề mục mới cho đỡ rối
+            local Label = Instance.new("TextLabel", MainPg)
+            Label.Size = UDim2.new(1,0,0,30)
+            Label.Text = "--- SAILOR PIECE FARM ---"
+            Label.BackgroundTransparency = 1
+            Label.TextColor3 = Color3.fromRGB(0, 200, 255)
+            Label.Font = Enum.Font.GothamBold
+
+            -- Nút Auto Farm (Cấu trúc mới)
+            local FarmBtn = Instance.new("TextButton", MainPg)
+            FarmBtn.Size = UDim2.new(0.95, 0, 0, 45)
+            FarmBtn.Text = "AUTO FARM LEVEL: OFF"
+            FarmBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+            FarmBtn.TextColor3 = Color3.new(1,1,1)
+            Instance.new("UICorner", FarmBtn)
+
+            local farming = false
+            FarmBtn.MouseButton1Click:Connect(function()
+                farming = not farming
+                FarmBtn.Text = farming and "AUTO FARM: ON" or "AUTO FARM: OFF"
+                FarmBtn.BackgroundColor3 = farming and Color3.fromRGB(255, 100, 0) or Color3.fromRGB(40, 40, 50)
+                
+                task.spawn(function()
+                    while farming do task.wait()
+                        pcall(function()
+                            -- Logic tìm quái của Sailor Piece
+                            for _, enemy in pairs(workspace.Enemies:GetChildren()) do
+                                if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
+                                    game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = enemy.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
+                                    -- Gửi tín hiệu đánh
+                                    game:GetService("ReplicatedStorage").Events.Combat:FireServer()
+                                end
+                            end
+                        end)
+                    end
+                end)
+            end)
+        end
+    end)
+end
+
+-- Chạy Module để nó thêm nút vào UI cũ
+pcall(function()
+    SailorPiece_Module:Init()
+end)
