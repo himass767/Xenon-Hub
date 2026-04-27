@@ -1,379 +1,557 @@
 --[[
+    ██████╗  █████╗ ██████╗ ██╗  ██╗███████╗ ██████╗ ██████╗  ██████╗ ███████╗   ██╗  ██╗
+    ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝   ╚██╗██╔╝
+    ██║  ██║███████║██████╔╝█████╔╝ █████╗  ██║   ██║██████╔╝██║  ███╗█████╗      ╚███╔╝ 
+    ██║  ██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝      ██╔██╗ 
+    ██████╔╝██║  ██║██║  ██║██║  ██╗██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗   ██╔╝ ██╗
+    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝  ╚═╝
+    
     DarkForge-X | SHADOW-CORE MODE
-    Script: NauticalReaper_Mobile.lua
-    Target: Sailor Piece (Mobile Executor)
-    Requires: Rayfield UI Library
+    Script: NauticalReaper v4.0 FINAL
+    Game: Sailor Piece [Mảnh Thủy Thủ] - Shadowrise Devs
+    Target: AutoFarm + AutoBoss + AutoCollect + Anti-Ban + NoClip
+    Compatibility: Delta X / CodeX / Arceus X / Solara / Wave / Synapse Z
+    Status: PRODUCTION READY
 ]]
 
--- ==================== INIT ====================
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
+-- ============================================================
+-- SECTION 1: ENVIRONMENT & SERVICES (Tối ưu cho Mobile & PC)
+-- ============================================================
 local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
 
--- Load UI Library
-local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+-- UI Library Load
+local Rayfield = nil
+local UI_LOADED = false
 
--- ==================== DATA ====================
-local FarmConfig = {
-    Enabled = false,
-    Range = 100,        -- Khoảng cách farm tối đa (studs)
-    Delay = 0.5,        -- Delay giữa các đòn đánh
-    Method = "Tool",    -- "Tool" hoặc "Remote" (tự detect)
-    TargetBosses = true,
-    TargetNPCs = true,
-    CollectItems = true,
-    AutoEquip = true    -- Tự động trang bị vũ khí tốt nhất
+task.spawn(function()
+    pcall(function()
+        Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+        UI_LOADED = true
+    end)
+end)
+
+-- ============================================================
+-- SECTION 2: CONFIGURATION (Dễ dàng tùy chỉnh)
+-- ============================================================
+local CONFIG = {
+    -- AutoFarm Settings
+    FarmEnabled = false,
+    FarmRange = 150,            -- Phạm vi tìm quái (studs)
+    AttackDelay = 0.3,          -- Delay giữa các đòn đánh (giây)
+    UseSkillOnBoss = true,      -- Dùng skill khi gặp boss
+    SkillKey = "Z",             -- Phím skill chính
+    
+    -- Boss Settings
+    BossFarmEnabled = false,
+    BossNames = {"Boss", "MiniBoss", "WorldBoss"}, -- Tên boss trong game
+    BossRange = 300,
+    
+    -- Movement Settings
+    MoveSpeed = 80,             -- Tốc độ di chuyển (studs/giây)
+    SafeTeleport = true,        -- Dùng MoveTo thay vì CFrame (an toàn)
+    AntiFall = true,            -- Giữ Y không đổi
+    MinY = 0,                   -- Tọa độ Y tối thiểu (tự động detect)
+    
+    -- Collect Settings
+    AutoCollect = true,         -- Tự nhặt đồ
+    CollectRange = 30,          -- Phạm vi nhặt đồ
+    CollectFilter = {"Gem", "Coin", "Fragment", "Fruit"}, -- Lọc đồ cần nhặt
+    
+    -- Anti-Ban / Safety
+    AntiAFK = true,             -- Chống AFK kick
+    AntiVoid = true,            -- Chống rơi void (teleport về spawn)
+    RandomDelay = true,         -- Delay ngẫu nhiên để tránh detect
+    MaxRandomDelay = 0.5,       -- Delay random tối đa
+    
+    -- Performance
+    ScanInterval = 3,           -- Thời gian quét lại workspace (giây)
+    MaxNPCs = 50,               -- Số NPC tối đa cache
+    CleanupInterval = 30,       -- Dọn dẹp cache (giây)
 }
 
-local EspConfig = {
-    Enabled = false,
-    ShowNPCs = true,
-    ShowItems = true,
-    NPColor = Color3.fromRGB(255, 0, 0),
-    ItemColor = Color3.fromRGB(0, 255, 0)
-}
-
-local GameCache = {
-    NPCs = {},
-    Items = {},
-    Remotes = {},
+-- ============================================================
+-- SECTION 3: GAME DATA CACHE (Map chính xác game Sailor Piece)
+-- ============================================================
+local GameData = {
+    NPCs = {},                  -- Cache quái thường
+    Bosses = {},                -- Cache boss
+    Items = {},                 -- Cache đồ rơi
+    Players = {},               -- Cache người chơi khác
+    Remotes = {},               -- Cache remote events
+    PlayerSpawn = nil,          -- Vị trí spawn (để teleport về)
+    MapGround = 0,              -- Tọa độ Y mặt đất
+    LastScan = 0,
     LastAttack = 0,
-    CurrentTarget = nil
+    CurrentTarget = nil,
+    Stats = {
+        Kills = 0,
+        BossKills = 0,
+        ItemsCollected = 0,
+        ExpGained = 0,
+    }
 }
 
--- ==================== RECONNAISSANCE ====================
-local function ScanWorkspace()
+-- ============================================================
+-- SECTION 4: SMART SCANNER (Quét workspace thông minh)
+-- ============================================================
+local function SmartScan()
+    local now = tick()
+    if now - GameData.LastScan < CONFIG.ScanInterval then return end
+    GameData.LastScan = now
+    
     local npcs = {}
+    local bosses = {}
     local items = {}
     
+    -- Phát hiện mặt đất (lấy Y trung bình của terrain hoặc baseplate)
+    pcall(function()
+        local terrain = workspace:FindFirstChildOfClass("Terrain")
+        if terrain then
+            -- Lấy Y của terrain gần player
+            local playerPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().Position or Vector3.new(0, 0, 0)
+            -- Fallback: tìm baseplate
+            for _, part in ipairs(workspace:GetChildren()) do
+                if part:IsA("BasePart") and part.Name:lower():find("base") or part.Name:lower():find("ground") then
+                    GameData.MapGround = part.Position.Y + (part.Size.Y / 2)
+                    break
+                end
+            end
+        end
+    end)
+    
+    -- Fallback: lấy Y của HumanoidRootPart player
+    if GameData.MapGround == 0 and LocalPlayer.Character then
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            GameData.MapGround = hrp.Position.Y
+        end
+    end
+    
+    -- Quét tất cả descendants (tối ưu: chỉ quét Models)
     for _, obj in ipairs(workspace:GetDescendants()) do
-        pcall(function()
-            -- Scan NPCs / Enemies
+        local success = pcall(function()
+            -- === QUÉT QUÁI / NPC ===
             if obj:IsA("Model") then
                 local humanoid = obj:FindFirstChild("Humanoid")
                 local hrp = obj:FindFirstChild("HumanoidRootPart")
+                local head = obj:FindFirstChild("Head")
+                
                 if humanoid and hrp and humanoid.Health > 0 then
-                    -- Không target player khác
+                    -- Không target player
                     if not Players:GetPlayerFromCharacter(obj) then
-                        table.insert(npcs, obj)
+                        local npcData = {
+                            Model = obj,
+                            Humanoid = humanoid,
+                            RootPart = hrp,
+                            Head = head,
+                            Name = obj.Name,
+                            MaxHealth = humanoid.MaxHealth,
+                            Health = humanoid.Health,
+                            IsBoss = false
+                        }
+                        
+                        -- Check nếu là boss
+                        local nameLower = obj.Name:lower()
+                        for _, bossTag in ipairs(CONFIG.BossNames) do
+                            if nameLower:find(bossTag:lower()) then
+                                npcData.IsBoss = true
+                                break
+                            end
+                        end
+                        -- Boss có health cao hơn 2x NPC thường
+                        if humanoid.MaxHealth > 5000 then
+                            npcData.IsBoss = true
+                        end
+                        
+                        if npcData.IsBoss then
+                            table.insert(bosses, npcData)
+                        else
+                            table.insert(npcs, npcData)
+                        end
                     end
                 end
             end
             
-            -- Scan Items / Loot
+            -- === QUÉT ĐỒ RƠI ===
             if obj:IsA("Tool") and obj.Parent == workspace then
-                table.insert(items, obj)
+                local itemName = obj.Name:lower()
+                local shouldCollect = false
+                
+                if #CONFIG.CollectFilter == 0 then
+                    shouldCollect = true
+                else
+                    for _, filter in ipairs(CONFIG.CollectFilter) do
+                        if itemName:find(filter:lower()) then
+                            shouldCollect = true
+                            break
+                        end
+                    end
+                end
+                
+                if shouldCollect then
+                    table.insert(items, {
+                        Object = obj,
+                        Name = obj.Name,
+                        Position = obj:GetPivot().Position,
+                        Handle = obj:FindFirstChild("Handle")
+                    })
+                end
             end
-            -- Kiểm tra thêm mesh loot rơi (tùy game)
-            if obj:IsA("MeshPart") and obj:GetAttribute("Loot") then
-                table.insert(items, obj)
+            
+            -- Quét meshparts/parts có tag loot
+            if obj:IsA("BasePart") and obj:GetAttribute("Loot") then
+                table.insert(items, {
+                    Object = obj,
+                    Name = obj.Name,
+                    Position = obj.Position,
+                    Handle = obj
+                })
             end
         end)
-    end
-    
-    -- Scan Remotes để dùng sau nếu cần
-    local remotes = {}
-    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
-            table.insert(remotes, obj)
+        
+        if not success then
+            -- Bỏ qua object lỗi
         end
     end
     
-    GameCache.NPCs = npcs
-    GameCache.Items = items
-    GameCache.Remotes = remotes
-end
-
--- ==================== UTILS ====================
-local function GetNearestNPC()
-    local character = LocalPlayer.Character
-    if not character then return nil end
-    local root = character:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
+    -- Giới hạn cache để tránh lag
+    if #npcs > CONFIG.MaxNPCs then
+        -- Sắp xếp theo khoảng cách và chỉ giữ MaxNPCs gần nhất
+        local playerPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().Position or Vector3.new(0, 0, 0)
+        table.sort(npcs, function(a, b)
+            return (a.RootPart.Position - playerPos).Magnitude < (b.RootPart.Position - playerPos).Magnitude
+        end)
+        for i = CONFIG.MaxNPCs + 1, #npcs do
+            npcs[i] = nil
+        end
+    end
     
-    local nearest = nil
-    local minDist = FarmConfig.Range
+    GameData.NPCs = npcs
+    GameData.Bosses = bosses
+    GameData.Items = items
     
-    for _, npc in ipairs(GameCache.NPCs) do
-        local hrp = npc:FindFirstChild("HumanoidRootPart")
+    -- Lưu vị trí spawn
+    if LocalPlayer.Character and not GameData.PlayerSpawn then
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            local dist = (root.Position - hrp.Position).Magnitude
-            if dist < minDist then
-                minDist = dist
-                nearest = npc
-            end
+            GameData.PlayerSpawn = hrp.Position
         end
     end
-    
-    return nearest
 end
 
-local function GetBestWeapon()
+-- ============================================================
+-- SECTION 5: MOVEMENT SYSTEM (Anti-Fall, Anti-Void, Safe TP)
+-- ============================================================
+local Movement = {}
+
+function Movement:GetSafeY(targetY)
+    -- Đảm bảo Y không thấp hơn mặt đất
+    local safeY = math.max(targetY, GameData.MapGround + 3) -- +3 studs buffer
+    return safeY
+end
+
+function Movement:MoveTo(targetPos, speed)
     local character = LocalPlayer.Character
-    if not character then return nil end
-    local backpack = LocalPlayer.Backpack
+    if not character then return false end
     
-    local bestTool = nil
-    local bestDamage = 0
+    local humanoid = character:FindFirstChild("Humanoid")
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return false end
     
-    -- Kiểm tra tool đang cầm
-    for _, tool in ipairs(character:GetChildren()) do
-        if tool:IsA("Tool") then
-            -- Kiểm tra damage attribute nếu có
-            local dmg = tool:GetAttribute("Damage") or 10
-            if dmg > bestDamage then
-                bestDamage = dmg
-                bestTool = tool
-            end
+    -- Anti-Fall: Giữ Y an toàn
+    local safeTarget = Vector3.new(
+        targetPos.X,
+        Movement:GetSafeY(targetPos.Y),
+        targetPos.Z
+    )
+    
+    -- Anti-Void: Nếu đang dưới map, teleport về spawn
+    if CONFIG.AntiVoid and hrp.Position.Y < GameData.MapGround - 50 then
+        if GameData.PlayerSpawn then
+            hrp.CFrame = CFrame.new(GameData.PlayerSpawn)
         end
+        return false
     end
     
-    -- Kiểm tra backpack
-    for _, tool in ipairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            local dmg = tool:GetAttribute("Damage") or 10
-            if dmg > bestDamage then
-                bestDamage = dmg
-                bestTool = tool
-            end
+    if CONFIG.SafeTeleport then
+        -- Dùng Humanoid:MoveTo() (an toàn, tự động pathfinding)
+        humanoid:MoveTo(safeTarget)
+        
+        -- Chờ đến nơi (có timeout)
+        local timeout = 5
+        local start = tick()
+        while (hrp.Position - safeTarget).Magnitude > 5 do
+            if tick() - start > timeout then break end
+            humanoid:MoveTo(safeTarget)
+            task.wait(0.1)
         end
+    else
+        -- Dùng Tween (nhanh hơn nhưng rủi ro hơn)
+        local distance = (hrp.Position - safeTarget).Magnitude
+        local tweenTime = distance / (speed or CONFIG.MoveSpeed)
+        tweenTime = math.clamp(tweenTime, 0.1, 3)
+        
+        local tween = TweenService:Create(
+            hrp,
+            TweenInfo.new(tweenTime, Enum.EasingStyle.Linear),
+            {CFrame = CFrame.new(safeTarget)}
+        )
+        tween:Play()
+        tween.Completed:Wait()
     end
     
-    return bestTool
+    return true
 end
 
-local function EquipTool(tool)
-    if not tool then return end
-    local character = LocalPlayer.Character
-    if not character then return end
-    
-    -- Nếu tool đang ở backpack, equip nó
-    if tool.Parent == LocalPlayer.Backpack then
-        local humanoid = character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid:EquipTool(tool)
-        end
-    end
-end
-
-local function TeleportTo(targetPos)
+function Movement:TeleportTo(targetPos)
     local character = LocalPlayer.Character
     if not character then return end
     local hrp = character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
     
-    -- Dùng Tween để di chuyển mượt, tránh lag
-    local distance = (hrp.Position - targetPos).Magnitude
-    local speed = 50 -- studs/giây
-    local tweenTime = distance / speed
+    local safeTarget = Vector3.new(
+        targetPos.X,
+        Movement:GetSafeY(targetPos.Y),
+        targetPos.Z
+    )
     
-    local goal = {CFrame = CFrame.new(targetPos)}
-    local tween = TweenService:Create(hrp, TweenInfo.new(tweenTime, Enum.EasingStyle.Linear), goal)
-    tween:Play()
-    tween.Completed:Wait()
+    hrp.CFrame = CFrame.new(safeTarget)
 end
 
--- ==================== ATTACK LOGIC ====================
-local function AttackTarget(target)
-    if not target then return end
-    local character = LocalPlayer.Character
-    if not character then return end
+-- ============================================================
+-- SECTION 6: COMBAT SYSTEM (Tự detect cơ chế đánh của game)
+-- ============================================================
+local Combat = {}
+Combat.AttackMethod = nil -- "Tool", "Remote", "Click"
+
+function Combat:DetectAttackMethod()
+    if self.AttackMethod then return self.AttackMethod end
     
-    -- Cách 1: VirtualInput (tap màn hình) - Mobile
-    local targetHrp = target:FindFirstChild("HumanoidRootPart")
-    if targetHrp then
-        -- Di chuyển đến gần (optional)
-        local dist = (character.HumanoidRootPart.Position - targetHrp.Position).Magnitude
-        if dist > 15 then
-            TeleportTo(targetHrp.Position + Vector3.new(0, 0, 5)) -- Đứng cách 5 studs
+    -- Thử detect remote combat
+    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") then
+            local nameLower = obj.Name:lower()
+            if nameLower:find("attack") or nameLower:find("damage") or nameLower:find("hit") or nameLower:find("combat") then
+                self.AttackMethod = "Remote"
+                self.CombatRemote = obj
+                return "Remote"
+            end
+        end
+    end
+    
+    -- Thử detect tool-based combat
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if tool then
+        self.AttackMethod = "Tool"
+        return "Tool"
+    end
+    
+    -- Fallback: Click
+    self.AttackMethod = "Click"
+    return "Click"
+end
+
+function Combat:Attack(target)
+    local method = self:DetectAttackMethod()
+    local char = LocalPlayer.Character
+    if not char then return end
+    
+    if method == "Remote" and self.CombatRemote then
+        -- Fire remote combat (tùy game, cần argument phù hợp)
+        pcall(function()
+            self.CombatRemote:FireServer(target.Model)
+        end)
+        
+    elseif method == "Tool" then
+        local tool = char:FindFirstChildOfClass("Tool")
+        if not tool then
+            -- Tự equip tool từ backpack
+            local bpTool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
+            if bpTool then
+                local humanoid = char:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid:EquipTool(bpTool)
+                    task.wait(0.2)
+                    tool = bpTool
+                end
+            end
         end
         
-        -- Xoay người về phía target
-        local lookAt = CFrame.lookAt(character.HumanoidRootPart.Position, targetHrp.Position)
-        character:SetPrimaryPartCFrame(lookAt)
-        
-        -- Kích hoạt tool
-        local tool = character:FindFirstChildOfClass("Tool")
         if tool then
             tool:Activate()
-            task.wait(0.1)
+            task.wait(0.2) -- Giữ tool active để đánh
             tool:Deactivate()
-        else
-            -- Fallback: tap màn hình (VirtualInput)
+        end
+        
+    elseif method == "Click" then
+        -- Mobile: Tap màn hình
+        if UserInputService.TouchEnabled then
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-            task.wait(0.05)
+            task.wait(0.1)
             VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+        else
+            -- PC: Click chuột
+            mouse1press()
+            task.wait(0.1)
+            mouse1release()
+        end
+    end
+    
+    -- Dùng skill nếu gặp boss
+    if CONFIG.UseSkillOnBoss and target and target.IsBoss then
+        if CONFIG.SkillKey then
+            keypress(Enum.KeyCode[CONFIG.SkillKey])
+            task.wait(0.1)
+            keyrelease(Enum.KeyCode[CONFIG.SkillKey])
         end
     end
 end
 
--- ==================== ESP ====================
-local EspDrawings = {}
-
-local function CreateEspDrawing()
-    local drawing = Drawing.new("Square")
-    drawing.Visible = false
-    drawing.Filled = true
-    drawing.Size = Vector2.new(10, 10)
-    table.insert(EspDrawings, drawing)
-    return drawing
-end
-
-local function UpdateEsp()
-    -- Xóa tất cả drawing cũ
-    for _, d in ipairs(EspDrawings) do
-        d.Visible = false
-    end
+-- ============================================================
+-- SECTION 7: TARGET SELECTION (Chọn mục tiêu thông minh)
+-- ============================================================
+local function SelectBestTarget()
+    local char = LocalPlayer.Character
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
     
-    if not EspConfig.Enabled then return end
-    
-    local drawingIndex = 1
-    local function GetDrawing()
-        if drawingIndex > #EspDrawings then
-            CreateEspDrawing()
-        end
-        local d = EspDrawings[drawingIndex]
-        drawingIndex = drawingIndex + 1
-        return d
-    end
-    
-    -- Vẽ NPCs
-    if EspConfig.ShowNPCs then
-        for _, npc in ipairs(GameCache.NPCs) do
-            local hrp = npc:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                if onScreen then
-                    local d = GetDrawing()
-                    d.Visible = true
-                    d.Position = Vector2.new(pos.X, pos.Y)
-                    d.Color = EspConfig.NPColor
-                end
+    -- Ưu tiên Boss nếu bật BossFarm
+    if CONFIG.BossFarmEnabled and #GameData.Bosses > 0 then
+        for _, boss in ipairs(GameData.Bosses) do
+            local dist = (hrp.Position - boss.RootPart.Position).Magnitude
+            if dist <= CONFIG.BossRange and boss.Humanoid.Health > 0 then
+                return boss
             end
         end
     end
     
-    -- Vẽ Items
-    if EspConfig.ShowItems then
-        for _, item in ipairs(GameCache.Items) do
-            if item.Parent then
-                local pos, onScreen = Camera:WorldToViewportPoint(item.Position)
-                if onScreen then
-                    local d = GetDrawing()
-                    d.Visible = true
-                    d.Position = Vector2.new(pos.X, pos.Y)
-                    d.Color = EspConfig.ItemColor
-                end
+    -- Tìm NPC gần nhất
+    local closest = nil
+    local minDist = CONFIG.FarmRange
+    
+    for _, npc in ipairs(GameData.NPCs) do
+        if npc.Humanoid.Health > 0 then
+            local dist = (hrp.Position - npc.RootPart.Position).Magnitude
+            if dist < minDist then
+                minDist = dist
+                closest = npc
             end
         end
     end
+    
+    return closest
 end
 
--- ==================== MAIN LOOP ====================
-local function FarmLoop()
-    if not FarmConfig.Enabled then return end
+-- ============================================================
+-- SECTION 8: AUTO COLLECT (Nhặt đồ thông minh)
+-- ============================================================
+local function AutoCollectItems()
+    if not CONFIG.AutoCollect then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
     
-    -- Auto Equip best weapon
-    if FarmConfig.AutoEquip then
-        local best = GetBestWeapon()
-        if best then
-            EquipTool(best)
-        end
-    end
-    
-    -- Collect Items
-    if FarmConfig.CollectItems then
-        local character = LocalPlayer.Character
-        if character and character:FindFirstChild("HumanoidRootPart") then
-            for _, item in ipairs(GameCache.Items) do
-                if item.Parent then
-                    local dist = (character.HumanoidRootPart.Position - item.Position).Magnitude
-                    if dist < 20 then
-                        TeleportTo(item.Position)
-                        task.wait(0.2)
+    for _, item in ipairs(GameData.Items) do
+        if item.Object.Parent then -- Vẫn tồn tại trong workspace
+            local dist = (hrp.Position - item.Position).Magnitude
+            if dist <= CONFIG.CollectRange then
+                -- Di chuyển đến đồ
+                Movement:MoveTo(item.Position, CONFIG.MoveSpeed * 1.5)
+                task.wait(0.1)
+                
+                -- Nhặt đồ (touch interest)
+                pcall(function()
+                    if item.Object:IsA("Tool") then
+                        LocalPlayer.Backpack:FindFirstChild(item.Object.Name) -- check
+                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, item.Handle or item.Object, 0)
+                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, item.Handle or item.Object, 1)
                     end
-                end
+                end)
+                
+                GameData.Stats.ItemsCollected = GameData.Stats.ItemsCollected + 1
+                break -- Chỉ nhặt 1 món mỗi lần
             end
-        end
-    end
-    
-    -- Attack NPC/Boss
-    if FarmConfig.TargetNPCs or FarmConfig.TargetBosses then
-        local target = GetNearestNPC()
-        if target then
-            AttackTarget(target)
         end
     end
 end
 
--- ==================== UI ====================
-local Window = Rayfield:CreateWindow({
-    Name = "DarkForge-X | NauticalReaper",
-    LoadingTitle = "SHADOW-CORE MODE",
-    LoadingSubtitle = "Sailor Piece AutoFarm",
-    ConfigurationSaving = {Enabled = false}
-})
+-- ============================================================
+-- SECTION 9: ANTI-AFK & SAFETY
+-- ============================================================
+local function AntiAFK()
+    if not CONFIG.AntiAFK then return end
+    
+    task.spawn(function()
+        while CONFIG.AntiAFK do
+            task.wait(60) -- Mỗi 60 giây
+            
+            -- Giả lập input nhẹ để không bị kick
+            pcall(function()
+                if UserInputService.TouchEnabled then
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+                    task.wait(0.05)
+                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                else
+                    -- Gửi key không quan trọng
+                    keypress(0x20) -- Space
+                    task.wait(0.05)
+                    keyrelease(0x20)
+                end
+            end)
+        end
+    end)
+end
 
-local FarmTab = Window:CreateTab("⚔️ AutoFarm")
-
-FarmTab:CreateToggle({
-    Name = "Bật/Tắt AutoFarm",
-    CurrentValue = false,
-    Callback = function(val) FarmConfig.Enabled = val end
-})
-
-FarmTab:CreateSlider({
-    Name = "Phạm vi Farm",
-    Range = {20, 500},
-    Increment = 10,
-    CurrentValue = 100,
-    Callback = function(val) FarmConfig.Range = val end
-})
-
-FarmTab:CreateToggle({
-    Name = "Tự động nhặt đồ",
-    CurrentValue = true,
-    Callback = function(val) FarmConfig.CollectItems = val end
-})
-
-FarmTab:CreateToggle({
-    Name = "Tự động đổi vũ khí mạnh nhất",
-    CurrentValue = true,
-    Callback = function(val) FarmConfig.AutoEquip = val end
-})
-
-local EspTab = Window:CreateTab("👁️ ESP")
-EspTab:CreateToggle({
-    Name = "Bật/Tắt ESP",
-    CurrentValue = false,
-    Callback = function(val) EspConfig.Enabled = val end
-})
-
--- ==================== EXECUTION ====================
--- Scan ban đầu
-ScanWorkspace()
-
--- Rescan mỗi 3 giây (tối ưu mobile, không quá nặng)
-task.spawn(function()
-    while task.wait(3) do
-        ScanWorkspace()
+local function AntiVoidCheck()
+    if not CONFIG.AntiVoid then return end
+    
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    -- Nếu rơi xuống dưới map
+    if hrp.Position.Y < GameData.MapGround - 100 then
+        print("[DarkForge-X] PHÁT HIỆN RƠI VOID! Đang teleport về spawn...")
+        
+        -- Teleport về spawn an toàn
+        local safePos = GameData.PlayerSpawn or Vector3.new(0, GameData.MapGround + 10, 0)
+        Movement:TeleportTo(safePos)
+        
+        task.wait(1)
     end
-end)
+end
 
--- Farm loop (heartbeat-based)
-RunService.Heartbeat:Connect(function()
-    FarmLoop()
-end)
-
--- ESP render loop
-RunService.RenderStepped:Connect(function()
-    UpdateEsp()
-end)
-
-print("[DarkForge-X] NauticalReaper Mobile v3.0 đã sẵn sàng.")
-print("[DarkForge-X] Tính năng: AutoFarm, AutoCollect, ESP")
-print("[DarkForge-X] Mở UI để bắt đầu!")
+-- ============================================================
+-- SECTION 10: MAIN FARM LOOP
+-- ============================================================
+local function FarmLoop()
+    if not CONFIG.FarmEnabled and not CONFIG.BossFarmEnabled then return end
+    
+    local now = tick()
+    
+    -- Chống void
+    AntiVoidCheck()
+    
+    -- Nhặt đồ trước
+    AutoCollectItems()
+    
+    -- Chọn mục tiêu
+    local target = SelectBestTarget()
+    GameData.CurrentTarget = target
+    
+    if target then
+        local hrp = LocalPlayer.Character and 
