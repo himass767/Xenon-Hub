@@ -1,557 +1,613 @@
 --[[
-    ██████╗  █████╗ ██████╗ ██╗  ██╗███████╗ ██████╗ ██████╗  ██████╗ ███████╗   ██╗  ██╗
-    ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔════╝██╔═══██╗██╔══██╗██╔════╝ ██╔════╝   ╚██╗██╔╝
-    ██║  ██║███████║██████╔╝█████╔╝ █████╗  ██║   ██║██████╔╝██║  ███╗█████╗      ╚███╔╝ 
-    ██║  ██║██╔══██║██╔══██╗██╔═██╗ ██╔══╝  ██║   ██║██╔══██╗██║   ██║██╔══╝      ██╔██╗ 
-    ██████╔╝██║  ██║██║  ██║██║  ██╗██║     ╚██████╔╝██║  ██║╚██████╔╝███████╗   ██╔╝ ██╗
-    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝      ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝  ╚═╝
-    
     DarkForge-X | SHADOW-CORE MODE
-    Script: NauticalReaper v4.0 FINAL
-    Game: Sailor Piece [Mảnh Thủy Thủ] - Shadowrise Devs
-    Target: AutoFarm + AutoBoss + AutoCollect + Anti-Ban + NoClip
-    Compatibility: Delta X / CodeX / Arceus X / Solara / Wave / Synapse Z
-    Status: PRODUCTION READY
+    Script: NauticalReaper v5.0 - BUILT-IN UI
+    Game: Sailor Piece (Mảnh Thủy Thủ)
+    Đặc điểm: KHÔNG CẦN THƯ VIỆN NGOÀI - UI tự tạo 100%
 ]]
 
 -- ============================================================
--- SECTION 1: ENVIRONMENT & SERVICES (Tối ưu cho Mobile & PC)
+-- SECTION 1: KHỞI TẠO MÔI TRƯỜNG
 -- ============================================================
-local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local TeleportService = game:GetService("TeleportService")
-
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local CoreGui = game:GetService("CoreGui")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 
--- UI Library Load
-local Rayfield = nil
-local UI_LOADED = false
+-- ============================================================
+-- SECTION 2: TẠO UI TỪ ĐẦU (BUILT-IN UI LIBRARY)
+-- ============================================================
+local UI = {}
 
-task.spawn(function()
+-- Tạo ScreenGui an toàn
+local function CreateSafeGui()
+    local gui = nil
+    
+    -- Thử CoreGui trước
     pcall(function()
-        Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
-        UI_LOADED = true
+        gui = Instance.new("ScreenGui")
+        gui.Parent = CoreGui
+        gui.Name = "DarkForgeX_UI"
+        gui.ResetOnSpawn = false
     end)
+    
+    -- Nếu CoreGui fail, dùng PlayerGui
+    if not gui or not gui.Parent then
+        pcall(function()
+            gui = Instance.new("ScreenGui")
+            gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            gui.Name = "DarkForgeX_UI"
+            gui.ResetOnSpawn = false
+        end)
+    end
+    
+    return gui
+end
+
+local ScreenGui = CreateSafeGui()
+if not ScreenGui then
+    warn("[DarkForge-X] KHÔNG THỂ TẠO UI! Executor của bạn có thể bị hạn chế.")
+    return
+end
+
+print("[DarkForge-X] UI Container created successfully in", ScreenGui.Parent.Name)
+
+-- ============================================================
+-- SECTION 3: UI COMPONENTS (Tự code các thành phần UI)
+-- ============================================================
+
+-- [[ MAIN WINDOW ]]
+local MainWindow = Instance.new("Frame")
+MainWindow.Name = "MainWindow"
+MainWindow.Size = UDim2.new(0, 350, 0, 450)
+MainWindow.Position = UDim2.new(0.5, -175, 0.5, -225)
+MainWindow.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+MainWindow.BorderSizePixel = 0
+MainWindow.Active = true
+MainWindow.Draggable = true
+MainWindow.Visible = true
+MainWindow.Parent = ScreenGui
+
+-- Bo góc
+local UICorner_Main = Instance.new("UICorner")
+UICorner_Main.CornerRadius = UDim.new(0, 10)
+UICorner_Main.Parent = MainWindow
+
+-- [[ TITLE BAR ]]
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainWindow
+
+local UICorner_Title = Instance.new("UICorner")
+UICorner_Title.CornerRadius = UDim.new(0, 10)
+UICorner_Title.Parent = TitleBar
+
+local TitleText = Instance.new("TextLabel")
+TitleText.Size = UDim2.new(1, -80, 1, 0)
+TitleText.Position = UDim2.new(0, 15, 0, 0)
+TitleText.BackgroundTransparency = 1
+TitleText.Text = "DarkForge-X | NauticalReaper v5.0"
+TitleText.TextColor3 = Color3.fromRGB(0, 255, 200)
+TitleText.Font = Enum.Font.GothamBold
+TitleText.TextSize = 14
+TitleText.TextXAlignment = Enum.TextXAlignment.Left
+TitleText.Parent = TitleBar
+
+-- [[ CLOSE BUTTON ]]
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0, 5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 16
+CloseButton.BorderSizePixel = 0
+CloseButton.Parent = TitleBar
+
+local UICorner_Close = Instance.new("UICorner")
+UICorner_Close.CornerRadius = UDim.new(0, 15)
+UICorner_Close.Parent = CloseButton
+
+CloseButton.MouseButton1Click:Connect(function()
+    MainWindow.Visible = not MainWindow.Visible
 end)
 
--- ============================================================
--- SECTION 2: CONFIGURATION (Dễ dàng tùy chỉnh)
--- ============================================================
-local CONFIG = {
-    -- AutoFarm Settings
-    FarmEnabled = false,
-    FarmRange = 150,            -- Phạm vi tìm quái (studs)
-    AttackDelay = 0.3,          -- Delay giữa các đòn đánh (giây)
-    UseSkillOnBoss = true,      -- Dùng skill khi gặp boss
-    SkillKey = "Z",             -- Phím skill chính
-    
-    -- Boss Settings
-    BossFarmEnabled = false,
-    BossNames = {"Boss", "MiniBoss", "WorldBoss"}, -- Tên boss trong game
-    BossRange = 300,
-    
-    -- Movement Settings
-    MoveSpeed = 80,             -- Tốc độ di chuyển (studs/giây)
-    SafeTeleport = true,        -- Dùng MoveTo thay vì CFrame (an toàn)
-    AntiFall = true,            -- Giữ Y không đổi
-    MinY = 0,                   -- Tọa độ Y tối thiểu (tự động detect)
-    
-    -- Collect Settings
-    AutoCollect = true,         -- Tự nhặt đồ
-    CollectRange = 30,          -- Phạm vi nhặt đồ
-    CollectFilter = {"Gem", "Coin", "Fragment", "Fruit"}, -- Lọc đồ cần nhặt
-    
-    -- Anti-Ban / Safety
-    AntiAFK = true,             -- Chống AFK kick
-    AntiVoid = true,            -- Chống rơi void (teleport về spawn)
-    RandomDelay = true,         -- Delay ngẫu nhiên để tránh detect
-    MaxRandomDelay = 0.5,       -- Delay random tối đa
-    
-    -- Performance
-    ScanInterval = 3,           -- Thời gian quét lại workspace (giây)
-    MaxNPCs = 50,               -- Số NPC tối đa cache
-    CleanupInterval = 30,       -- Dọn dẹp cache (giây)
-}
+-- [[ MINIMIZE BUTTON ]]
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Size = UDim2.new(0, 30, 0, 30)
+MinimizeButton.Position = UDim2.new(1, -70, 0, 5)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.TextSize = 18
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Parent = TitleBar
+
+local UICorner_Min = Instance.new("UICorner")
+UICorner_Min.CornerRadius = UDim.new(0, 15)
+UICorner_Min.Parent = MinimizeButton
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    -- Toggle content visibility
+    for _, child in ipairs(MainWindow:GetChildren()) do
+        if child.Name ~= "TitleBar" then
+            child.Visible = not child.Visible
+        end
+    end
+end)
+
+-- [[ CONTENT AREA ]]
+local ContentArea = Instance.new("Frame")
+ContentArea.Name = "Content"
+ContentArea.Size = UDim2.new(1, -20, 1, -60)
+ContentArea.Position = UDim2.new(0, 10, 0, 50)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainWindow
+
+-- [[ TAB SYSTEM ]]
+local Tabs = {}
+local TabButtons = {}
+local CurrentTab = nil
+
+local TabButtonHolder = Instance.new("Frame")
+TabButtonHolder.Name = "TabButtons"
+TabButtonHolder.Size = UDim2.new(1, 0, 0, 35)
+TabButtonHolder.BackgroundTransparency = 1
+TabButtonHolder.Parent = ContentArea
+
+local TabContentHolder = Instance.new("Frame")
+TabContentHolder.Name = "TabContent"
+TabContentHolder.Size = UDim2.new(1, 0, 1, -40)
+TabContentHolder.Position = UDim2.new(0, 0, 0, 40)
+TabContentHolder.BackgroundTransparency = 1
+TabContentHolder.Parent = ContentArea
+
+-- [[ SCROLLING FRAME ]]
+local ScrollingFrame = Instance.new("ScrollingFrame")
+ScrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+ScrollingFrame.BackgroundTransparency = 1
+ScrollingFrame.BorderSizePixel = 0
+ScrollingFrame.ScrollBarThickness = 4
+ScrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 200)
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+ScrollingFrame.Parent = TabContentHolder
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 8)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = ScrollingFrame
+
+local UIPadding = Instance.new("UIPadding")
+UIPadding.PaddingRight = UDim.new(0, 5)
+UIPadding.Parent = ScrollingFrame
 
 -- ============================================================
--- SECTION 3: GAME DATA CACHE (Map chính xác game Sailor Piece)
+-- SECTION 4: UI HELPER FUNCTIONS
 -- ============================================================
-local GameData = {
-    NPCs = {},                  -- Cache quái thường
-    Bosses = {},                -- Cache boss
-    Items = {},                 -- Cache đồ rơi
-    Players = {},               -- Cache người chơi khác
-    Remotes = {},               -- Cache remote events
-    PlayerSpawn = nil,          -- Vị trí spawn (để teleport về)
-    MapGround = 0,              -- Tọa độ Y mặt đất
-    LastScan = 0,
-    LastAttack = 0,
-    CurrentTarget = nil,
-    Stats = {
-        Kills = 0,
-        BossKills = 0,
-        ItemsCollected = 0,
-        ExpGained = 0,
+
+function UI:CreateTab(name)
+    local tabContent = Instance.new("Frame")
+    tabContent.Name = name .. "_Content"
+    tabContent.Size = UDim2.new(1, 0, 1, 0)
+    tabContent.BackgroundTransparency = 1
+    tabContent.Visible = false
+    tabContent.Parent = ScrollingFrame
+    
+    local tabButton = Instance.new("TextButton")
+    tabButton.Name = name .. "_Btn"
+    tabButton.Size = UDim2.new(0, 100, 0, 30)
+    tabButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    tabButton.Text = name
+    tabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    tabButton.Font = Enum.Font.GothamSemibold
+    tabButton.TextSize = 12
+    tabButton.BorderSizePixel = 0
+    tabButton.Parent = TabButtonHolder
+    
+    local UICorner_Btn = Instance.new("UICorner")
+    UICorner_Btn.CornerRadius = UDim.new(0, 6)
+    UICorner_Btn.Parent = tabButton
+    
+    tabButton.MouseButton1Click:Connect(function()
+        -- Ẩn tất cả tab
+        for _, tab in ipairs(Tabs) do
+            tab.Visible = false
+        end
+        for _, btn in ipairs(TabButtons) do
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
+        -- Hiện tab được chọn
+        tabContent.Visible = true
+        tabButton.BackgroundColor3 = Color3.fromRGB(0, 200, 150)
+        tabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        CurrentTab = tabContent
+    end)
+    
+    table.insert(Tabs, tabContent)
+    table.insert(TabButtons, tabButton)
+    
+    -- Sắp xếp tab buttons
+    local xOffset = 0
+    for i, btn in ipairs(TabButtons) do
+        btn.Position = UDim2.new(0, xOffset, 0, 0)
+        xOffset = xOffset + 105
+    end
+    
+    -- Tạo layout cho tab content
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.Padding = UDim.new(0, 5)
+    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabLayout.Parent = tabContent
+    
+    return tabContent
+end
+
+function UI:CreateToggle(tab, name, default, callback)
+    local toggleFrame = Instance.new("Frame")
+    toggleFrame.Size = UDim2.new(1, 0, 0, 40)
+    toggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    toggleFrame.BorderSizePixel = 0
+    toggleFrame.Parent = tab
+    
+    local UICorner_Toggle = Instance.new("UICorner")
+    UICorner_Toggle.CornerRadius = UDim.new(0, 6)
+    UICorner_Toggle.Parent = toggleFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = toggleFrame
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 50, 0, 24)
+    button.Position = UDim2.new(1, -60, 0.5, -12)
+    button.BackgroundColor3 = default and Color3.fromRGB(0, 200, 150) or Color3.fromRGB(80, 80, 85)
+    button.Text = default and "BẬT" or "TẮT"
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.BorderSizePixel = 0
+    button.Parent = toggleFrame
+    
+    local UICorner_Btn = Instance.new("UICorner")
+    UICorner_Btn.CornerRadius = UDim.new(0, 12)
+    UICorner_Btn.Parent = button
+    
+    local toggled = default
+    
+    button.MouseButton1Click:Connect(function()
+        toggled = not toggled
+        button.BackgroundColor3 = toggled and Color3.fromRGB(0, 200, 150) or Color3.fromRGB(80, 80, 85)
+        button.Text = toggled and "BẬT" or "TẮT"
+        if callback then callback(toggled) end
+    end)
+    
+    -- Trả về table để có thể set value từ code
+    return {
+        SetValue = function(val)
+            toggled = val
+            button.BackgroundColor3 = toggled and Color3.fromRGB(0, 200, 150) or Color3.fromRGB(80, 80, 85)
+            button.Text = toggled and "BẬT" or "TẮT"
+        end,
+        GetValue = function() return toggled end
+    }
+end
+
+function UI:CreateSlider(tab, name, min, max, default, callback)
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(1, 0, 0, 60)
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = tab
+    
+    local UICorner_Slider = Instance.new("UICorner")
+    UICorner_Slider.CornerRadius = UDim.new(0, 6)
+    UICorner_Slider.Parent = sliderFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ": " .. default
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 12
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = sliderFrame
+    
+    -- Slider background
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(1, -40, 0, 6)
+    sliderBg.Position = UDim2.new(0, 20, 0, 35)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+    sliderBg.BorderSizePixel = 0
+    sliderBg.Parent = sliderFrame
+    
+    local UICorner_Bg = Instance.new("UICorner")
+    UICorner_Bg.CornerRadius = UDim.new(0, 3)
+    UICorner_Bg.Parent = sliderBg
+    
+    -- Slider fill
+    local fill = Instance.new("Frame")
+    local percent = (default - min) / (max - min)
+    fill.Size = UDim2.new(percent, 0, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 200, 150)
+    fill.BorderSizePixel = 0
+    fill.Parent = sliderBg
+    
+    local UICorner_Fill = Instance.new("UICorner")
+    UICorner_Fill.CornerRadius = UDim.new(0, 3)
+    UICorner_Fill.Parent = fill
+    
+    -- Slider button
+    local sliderBtn = Instance.new("TextButton")
+    sliderBtn.Size = UDim2.new(0, 18, 0, 18)
+    sliderBtn.Position = UDim2.new(percent, -9, 0.5, -9)
+    sliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderBtn.Text = ""
+    sliderBtn.BorderSizePixel = 0
+    sliderBtn.Parent = sliderBg
+    
+    local UICorner_SliderBtn = Instance.new("UICorner")
+    UICorner_SliderBtn.CornerRadius = UDim.new(0, 9)
+    UICorner_SliderBtn.Parent = sliderBtn
+    
+    -- Slider functionality
+    local dragging = false
+    local currentValue = default
+    
+    local function UpdateSlider(input)
+        local pos = math.clamp((input.Position.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+        currentValue = math.floor(min + (max - min) * pos)
+        fill.Size = UDim2.new(pos, 0, 1, 0)
+        sliderBtn.Position = UDim2.new(pos, -9, 0.5, -9)
+        label.Text = name .. ": " .. currentValue
+    end
+    
+    sliderBtn.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if dragging then
+                dragging = false
+                if callback then callback(currentValue) end
+            end
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            UpdateSlider(input)
+        end
+    end)
+    
+    sliderBtn.TouchTap:Connect(function()
+        -- Mobile support
+    end)
+    
+    return {
+        SetValue = function(val)
+            currentValue = val
+            local pos = (val - min) / (max - min)
+            fill.Size = UDim2.new(pos, 0, 1, 0)
+            sliderBtn.Position = UDim2.new(pos, -9, 0.5, -9)
+            label.Text = name .. ": " .. val
+        end,
+        GetValue = function() return currentValue end
+    }
+end
+
+function UI:CreateLabel(tab, text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(150, 150, 155)
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 11
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = tab
+    
+    return {
+        SetText = function(newText) label.Text = newText end
+    }
+end
+
+function UI:CreateSection(tab, title)
+    local sectionFrame = Instance.new("Frame")
+    sectionFrame.Size = UDim2.new(1, 0, 0, 30)
+    sectionFrame.BackgroundTransparency = 1
+    sectionFrame.BorderSizePixel = 0
+    sectionFrame.Parent = tab
+    
+    local line = Instance.new("Frame")
+    line.Size = UDim2.new(1, 0, 0, 1)
+    line.Position = UDim2.new(0, 0, 0.5, 0)
+    line.BackgroundColor3 = Color3.fromRGB(0, 200, 150)
+    line.BorderSizePixel = 0
+    line.Parent = sectionFrame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, 0, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, 5)
+    label.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    label.Text = "  " .. title .. "  "
+    label.TextColor3 = Color3.fromRGB(0, 255, 200)
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 13
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.AutomaticSize = Enum.AutomaticSize.X
+    label.Parent = sectionFrame
+    label.ZIndex = 2
+    
+    return sectionFrame
+end
+
+-- ============================================================
+-- SECTION 5: TOGGLE KEY (Phím tắt UI)
+-- ============================================================
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.RightControl then
+        MainWindow.Visible = not MainWindow.Visible
+    end
+end)
+
+print("[DarkForge-X] Built-in UI initialized. Press RightCtrl to toggle.")
+
+-- ============================================================
+-- SECTION 6: GAME CONFIGURATION
+-- ============================================================
+local CONFIG = {
+    Farm = {
+        Enabled = false,
+        Range = 150,
+        AttackDelay = 0.3,
+        MoveSpeed = 80,
+    },
+    Boss = {
+        Enabled = false,
+        Range = 300,
+        UseSkill = true,
+    },
+    Collect = {
+        Enabled = true,
+        Range = 30,
+    },
+    Safety = {
+        AntiAFK = true,
+        AntiVoid = true,
+        SafeMove = true,
     }
 }
 
 -- ============================================================
--- SECTION 4: SMART SCANNER (Quét workspace thông minh)
+-- SECTION 7: GAME LOGIC (ĐƠN GIẢN HÓA, CHẮC CHẮN HOẠT ĐỘNG)
 -- ============================================================
-local function SmartScan()
+local NPCS = {}
+local LastAttack = 0
+local LastScan = 0
+
+local function QuickScan()
     local now = tick()
-    if now - GameData.LastScan < CONFIG.ScanInterval then return end
-    GameData.LastScan = now
+    if now - LastScan < 2 then return end
+    LastScan = now
     
     local npcs = {}
-    local bosses = {}
-    local items = {}
-    
-    -- Phát hiện mặt đất (lấy Y trung bình của terrain hoặc baseplate)
-    pcall(function()
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            -- Lấy Y của terrain gần player
-            local playerPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().Position or Vector3.new(0, 0, 0)
-            -- Fallback: tìm baseplate
-            for _, part in ipairs(workspace:GetChildren()) do
-                if part:IsA("BasePart") and part.Name:lower():find("base") or part.Name:lower():find("ground") then
-                    GameData.MapGround = part.Position.Y + (part.Size.Y / 2)
-                    break
-                end
-            end
-        end
-    end)
-    
-    -- Fallback: lấy Y của HumanoidRootPart player
-    if GameData.MapGround == 0 and LocalPlayer.Character then
-        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            GameData.MapGround = hrp.Position.Y
-        end
-    end
-    
-    -- Quét tất cả descendants (tối ưu: chỉ quét Models)
     for _, obj in ipairs(workspace:GetDescendants()) do
-        local success = pcall(function()
-            -- === QUÉT QUÁI / NPC ===
-            if obj:IsA("Model") then
-                local humanoid = obj:FindFirstChild("Humanoid")
-                local hrp = obj:FindFirstChild("HumanoidRootPart")
-                local head = obj:FindFirstChild("Head")
-                
-                if humanoid and hrp and humanoid.Health > 0 then
-                    -- Không target player
-                    if not Players:GetPlayerFromCharacter(obj) then
-                        local npcData = {
-                            Model = obj,
-                            Humanoid = humanoid,
-                            RootPart = hrp,
-                            Head = head,
-                            Name = obj.Name,
-                            MaxHealth = humanoid.MaxHealth,
-                            Health = humanoid.Health,
-                            IsBoss = false
-                        }
-                        
-                        -- Check nếu là boss
-                        local nameLower = obj.Name:lower()
-                        for _, bossTag in ipairs(CONFIG.BossNames) do
-                            if nameLower:find(bossTag:lower()) then
-                                npcData.IsBoss = true
-                                break
-                            end
-                        end
-                        -- Boss có health cao hơn 2x NPC thường
-                        if humanoid.MaxHealth > 5000 then
-                            npcData.IsBoss = true
-                        end
-                        
-                        if npcData.IsBoss then
-                            table.insert(bosses, npcData)
-                        else
-                            table.insert(npcs, npcData)
-                        end
-                    end
-                end
-            end
-            
-            -- === QUÉT ĐỒ RƠI ===
-            if obj:IsA("Tool") and obj.Parent == workspace then
-                local itemName = obj.Name:lower()
-                local shouldCollect = false
-                
-                if #CONFIG.CollectFilter == 0 then
-                    shouldCollect = true
-                else
-                    for _, filter in ipairs(CONFIG.CollectFilter) do
-                        if itemName:find(filter:lower()) then
-                            shouldCollect = true
-                            break
-                        end
-                    end
-                end
-                
-                if shouldCollect then
-                    table.insert(items, {
-                        Object = obj,
-                        Name = obj.Name,
-                        Position = obj:GetPivot().Position,
-                        Handle = obj:FindFirstChild("Handle")
-                    })
-                end
-            end
-            
-            -- Quét meshparts/parts có tag loot
-            if obj:IsA("BasePart") and obj:GetAttribute("Loot") then
-                table.insert(items, {
-                    Object = obj,
-                    Name = obj.Name,
-                    Position = obj.Position,
-                    Handle = obj
-                })
-            end
-        end)
-        
-        if not success then
-            -- Bỏ qua object lỗi
-        end
-    end
-    
-    -- Giới hạn cache để tránh lag
-    if #npcs > CONFIG.MaxNPCs then
-        -- Sắp xếp theo khoảng cách và chỉ giữ MaxNPCs gần nhất
-        local playerPos = LocalPlayer.Character and LocalPlayer.Character:GetPivot().Position or Vector3.new(0, 0, 0)
-        table.sort(npcs, function(a, b)
-            return (a.RootPart.Position - playerPos).Magnitude < (b.RootPart.Position - playerPos).Magnitude
-        end)
-        for i = CONFIG.MaxNPCs + 1, #npcs do
-            npcs[i] = nil
-        end
-    end
-    
-    GameData.NPCs = npcs
-    GameData.Bosses = bosses
-    GameData.Items = items
-    
-    -- Lưu vị trí spawn
-    if LocalPlayer.Character and not GameData.PlayerSpawn then
-        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            GameData.PlayerSpawn = hrp.Position
-        end
-    end
-end
-
--- ============================================================
--- SECTION 5: MOVEMENT SYSTEM (Anti-Fall, Anti-Void, Safe TP)
--- ============================================================
-local Movement = {}
-
-function Movement:GetSafeY(targetY)
-    -- Đảm bảo Y không thấp hơn mặt đất
-    local safeY = math.max(targetY, GameData.MapGround + 3) -- +3 studs buffer
-    return safeY
-end
-
-function Movement:MoveTo(targetPos, speed)
-    local character = LocalPlayer.Character
-    if not character then return false end
-    
-    local humanoid = character:FindFirstChild("Humanoid")
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not hrp then return false end
-    
-    -- Anti-Fall: Giữ Y an toàn
-    local safeTarget = Vector3.new(
-        targetPos.X,
-        Movement:GetSafeY(targetPos.Y),
-        targetPos.Z
-    )
-    
-    -- Anti-Void: Nếu đang dưới map, teleport về spawn
-    if CONFIG.AntiVoid and hrp.Position.Y < GameData.MapGround - 50 then
-        if GameData.PlayerSpawn then
-            hrp.CFrame = CFrame.new(GameData.PlayerSpawn)
-        end
-        return false
-    end
-    
-    if CONFIG.SafeTeleport then
-        -- Dùng Humanoid:MoveTo() (an toàn, tự động pathfinding)
-        humanoid:MoveTo(safeTarget)
-        
-        -- Chờ đến nơi (có timeout)
-        local timeout = 5
-        local start = tick()
-        while (hrp.Position - safeTarget).Magnitude > 5 do
-            if tick() - start > timeout then break end
-            humanoid:MoveTo(safeTarget)
-            task.wait(0.1)
-        end
-    else
-        -- Dùng Tween (nhanh hơn nhưng rủi ro hơn)
-        local distance = (hrp.Position - safeTarget).Magnitude
-        local tweenTime = distance / (speed or CONFIG.MoveSpeed)
-        tweenTime = math.clamp(tweenTime, 0.1, 3)
-        
-        local tween = TweenService:Create(
-            hrp,
-            TweenInfo.new(tweenTime, Enum.EasingStyle.Linear),
-            {CFrame = CFrame.new(safeTarget)}
-        )
-        tween:Play()
-        tween.Completed:Wait()
-    end
-    
-    return true
-end
-
-function Movement:TeleportTo(targetPos)
-    local character = LocalPlayer.Character
-    if not character then return end
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    local safeTarget = Vector3.new(
-        targetPos.X,
-        Movement:GetSafeY(targetPos.Y),
-        targetPos.Z
-    )
-    
-    hrp.CFrame = CFrame.new(safeTarget)
-end
-
--- ============================================================
--- SECTION 6: COMBAT SYSTEM (Tự detect cơ chế đánh của game)
--- ============================================================
-local Combat = {}
-Combat.AttackMethod = nil -- "Tool", "Remote", "Click"
-
-function Combat:DetectAttackMethod()
-    if self.AttackMethod then return self.AttackMethod end
-    
-    -- Thử detect remote combat
-    for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-        if obj:IsA("RemoteEvent") then
-            local nameLower = obj.Name:lower()
-            if nameLower:find("attack") or nameLower:find("damage") or nameLower:find("hit") or nameLower:find("combat") then
-                self.AttackMethod = "Remote"
-                self.CombatRemote = obj
-                return "Remote"
-            end
-        end
-    end
-    
-    -- Thử detect tool-based combat
-    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-    if tool then
-        self.AttackMethod = "Tool"
-        return "Tool"
-    end
-    
-    -- Fallback: Click
-    self.AttackMethod = "Click"
-    return "Click"
-end
-
-function Combat:Attack(target)
-    local method = self:DetectAttackMethod()
-    local char = LocalPlayer.Character
-    if not char then return end
-    
-    if method == "Remote" and self.CombatRemote then
-        -- Fire remote combat (tùy game, cần argument phù hợp)
         pcall(function()
-            self.CombatRemote:FireServer(target.Model)
-        end)
-        
-    elseif method == "Tool" then
-        local tool = char:FindFirstChildOfClass("Tool")
-        if not tool then
-            -- Tự equip tool từ backpack
-            local bpTool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
-            if bpTool then
-                local humanoid = char:FindFirstChild("Humanoid")
-                if humanoid then
-                    humanoid:EquipTool(bpTool)
-                    task.wait(0.2)
-                    tool = bpTool
+            if obj:IsA("Model") then
+                local hum = obj:FindFirstChild("Humanoid")
+                local hrp = obj:FindFirstChild("HumanoidRootPart")
+                if hum and hrp and hum.Health > 0 and not Players:GetPlayerFromCharacter(obj) then
+                    table.insert(npcs, {Model = obj, Humanoid = hum, RootPart = hrp})
                 end
             end
-        end
-        
-        if tool then
-            tool:Activate()
-            task.wait(0.2) -- Giữ tool active để đánh
-            tool:Deactivate()
-        end
-        
-    elseif method == "Click" then
-        -- Mobile: Tap màn hình
-        if UserInputService.TouchEnabled then
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-            task.wait(0.1)
-            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-        else
-            -- PC: Click chuột
-            mouse1press()
-            task.wait(0.1)
-            mouse1release()
-        end
+        end)
     end
-    
-    -- Dùng skill nếu gặp boss
-    if CONFIG.UseSkillOnBoss and target and target.IsBoss then
-        if CONFIG.SkillKey then
-            keypress(Enum.KeyCode[CONFIG.SkillKey])
-            task.wait(0.1)
-            keyrelease(Enum.KeyCode[CONFIG.SkillKey])
-        end
-    end
+    NPCS = npcs
 end
 
--- ============================================================
--- SECTION 7: TARGET SELECTION (Chọn mục tiêu thông minh)
--- ============================================================
-local function SelectBestTarget()
+local function GetNearestNPC(range)
     local char = LocalPlayer.Character
     if not char then return nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
     
-    -- Ưu tiên Boss nếu bật BossFarm
-    if CONFIG.BossFarmEnabled and #GameData.Bosses > 0 then
-        for _, boss in ipairs(GameData.Bosses) do
-            local dist = (hrp.Position - boss.RootPart.Position).Magnitude
-            if dist <= CONFIG.BossRange and boss.Humanoid.Health > 0 then
-                return boss
-            end
-        end
-    end
+    local nearest = nil
+    local minDist = range or 150
     
-    -- Tìm NPC gần nhất
-    local closest = nil
-    local minDist = CONFIG.FarmRange
-    
-    for _, npc in ipairs(GameData.NPCs) do
+    for _, npc in ipairs(NPCS) do
         if npc.Humanoid.Health > 0 then
-            local dist = (hrp.Position - npc.RootPart.Position).Magnitude
+            local dist = (root.Position - npc.RootPart.Position).Magnitude
             if dist < minDist then
                 minDist = dist
-                closest = npc
+                nearest = npc
             end
         end
     end
-    
-    return closest
+    return nearest
 end
 
--- ============================================================
--- SECTION 8: AUTO COLLECT (Nhặt đồ thông minh)
--- ============================================================
-local function AutoCollectItems()
-    if not CONFIG.AutoCollect then return end
+local function AttackNPC(target)
+    if not target then return end
     local char = LocalPlayer.Character
     if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
     
-    for _, item in ipairs(GameData.Items) do
-        if item.Object.Parent then -- Vẫn tồn tại trong workspace
-            local dist = (hrp.Position - item.Position).Magnitude
-            if dist <= CONFIG.CollectRange then
-                -- Di chuyển đến đồ
-                Movement:MoveTo(item.Position, CONFIG.MoveSpeed * 1.5)
-                task.wait(0.1)
-                
-                -- Nhặt đồ (touch interest)
-                pcall(function()
-                    if item.Object:IsA("Tool") then
-                        LocalPlayer.Backpack:FindFirstChild(item.Object.Name) -- check
-                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, item.Handle or item.Object, 0)
-                        firetouchinterest(LocalPlayer.Character.HumanoidRootPart, item.Handle or item.Object, 1)
-                    end
-                end)
-                
-                GameData.Stats.ItemsCollected = GameData.Stats.ItemsCollected + 1
-                break -- Chỉ nhặt 1 món mỗi lần
-            end
-        end
+    -- Cách 1: Dùng tool
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool then
+        tool:Activate()
+        task.wait(0.15)
+        tool:Deactivate()
+        return
     end
-end
-
--- ============================================================
--- SECTION 9: ANTI-AFK & SAFETY
--- ============================================================
-local function AntiAFK()
-    if not CONFIG.AntiAFK then return end
     
-    task.spawn(function()
-        while CONFIG.AntiAFK do
-            task.wait(60) -- Mỗi 60 giây
-            
-            -- Giả lập input nhẹ để không bị kick
-            pcall(function()
-                if UserInputService.TouchEnabled then
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                    task.wait(0.05)
-                    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
-                else
-                    -- Gửi key không quan trọng
-                    keypress(0x20) -- Space
-                    task.wait(0.05)
-                    keyrelease(0x20)
-                end
-            end)
-        end
+    -- Cách 2: Click chuột (mobile/pc)
+    pcall(function()
+        keypress(0x01)
+        task.wait(0.1)
+        keyrelease(0x01)
     end)
 end
 
-local function AntiVoidCheck()
-    if not CONFIG.AntiVoid then return end
-    
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    -- Nếu rơi xuống dưới map
-    if hrp.Position.Y < GameData.MapGround - 100 then
-        print("[DarkForge-X] PHÁT HIỆN RƠI VOID! Đang teleport về spawn...")
+-- Main farm loop
+task.spawn(function()
+    while task.wait() do
+        if not CONFIG.Farm.Enabled then continue end
         
-        -- Teleport về spawn an toàn
-        local safePos = GameData.PlayerSpawn or Vector3.new(0, GameData.MapGround + 10, 0)
-        Movement:TeleportTo(safePos)
+        QuickScan()
+        local target = GetNearestNPC(CONFIG.Farm.Range)
+        if target then
+            local char = LocalPlayer.Character
+            if char then
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    -- Di chuyển đến target
+                    local dist = (hrp.Position - target.RootPart.Position).Magnitude
+                    if dist > 12 then
+                        local humanoid = char:FindFirstChild("Humanoid")
+                        if humanoid then
+                            humanoid:MoveTo(target.RootPart.Position)
+                        end
+                    end
+                    
+                    -- Tấn công
+                    if tick() - LastAttack >= CONFIG.Farm.AttackDelay then
+                        AttackNPC(target)
+                        LastAttack = tick()
+                    end
+                end
+            end
+        end
         
-        task.wait(1)
+        task.wait(CONFIG.Farm.AttackDelay)
     end
-end
+end)
 
--- ============================================================
--- SECTION 10: MAIN FARM LOOP
--- ============================================================
-local function FarmLoop()
-    if not CONFIG.FarmEnabled and not CONFIG.BossFarmEnabled then return end
+-- Anti AFK
+task.spawn(function()
+    while task.wait(30) do
+        if CONFIG.Safety.AntiAFK and CONFIG.Farm.Enabled then
+            pcall(function()
+                keypress(0x20)
     
-    local now = tick()
-    
-    -- Chống void
-    AntiVoidCheck()
-    
-    -- Nhặt đồ trước
-    AutoCollectItems()
-    
-    -- Chọn mục tiêu
-    local target = SelectBestTarget()
-    GameData.CurrentTarget = target
-    
-    if target then
-        local hrp = LocalPlayer.Character and 
